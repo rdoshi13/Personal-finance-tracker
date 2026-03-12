@@ -14,8 +14,8 @@ const transactionRoutes = require('./routes/transactionRoutes');
 // Use the routes
 app.use('/api/transactions', transactionRoutes);
 
-// Log the MongoDB URI to ensure it's being loaded correctly
-console.log('MongoDB URI:', process.env.MONGO_URI);
+// Confirm config is present without leaking secrets into logs
+console.log('MongoDB URI configured:', Boolean(process.env.MONGO_URI));
 
 const PORT = process.env.PORT || 5001;
 

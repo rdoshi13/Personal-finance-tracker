@@ -2,6 +2,11 @@
 const mongoose = require('mongoose');
 
 const TransactionSchema = new mongoose.Schema({
+    name: {
+        type: String,
+        required: true,
+        trim: true,
+    },
     type: {
         type: String,
         required: true,
@@ -10,6 +15,8 @@ const TransactionSchema = new mongoose.Schema({
     category: {
         type: String,
         required: true,
+        default: 'Uncategorized',
+        trim: true,
     },
     amount: {
         type: Number,
