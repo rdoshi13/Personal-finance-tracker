@@ -78,6 +78,12 @@ const getMonthlyTransactions = (sourceTransactions, year, month) => {
         });
 };
 const getTransactionId = (transaction) => transaction?._id || transaction?.id || '';
+const getHeaderTitle = (authUser) => {
+    const name = String(authUser?.name || '').trim();
+    if (!name) return 'Personal Financial Tracker';
+    const suffix = name.toLowerCase().endsWith('s') ? "'" : "'s";
+    return `${name}${suffix} Financial Tracker`;
+};
 
 const MoonIcon = () => (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -619,8 +625,6 @@ const Report = () => {
             return;
         }
 
-        if (!window.confirm('Are you sure you want to delete this transaction?')) return;
-
         try {
             await deleteTransaction(transactionId);
 
@@ -697,7 +701,7 @@ const Report = () => {
             </button>
 
             <header className="app-header">
-                <h1>Personal Financial Tracker</h1>
+                <h1>{getHeaderTitle(authUser)}</h1>
                 {authUser && (
                     <div className="auth-header-actions">
                         <span className="auth-user-email">{authUser.email}</span>

@@ -41,7 +41,6 @@ describe('Report', () => {
         jest.clearAllMocks();
         window.localStorage.clear();
         document.documentElement.removeAttribute('data-theme');
-        window.confirm = jest.fn();
         getCurrentUser.mockResolvedValue({
             user: {
                 id: 'user-1',
@@ -158,7 +157,6 @@ describe('Report', () => {
             },
         ]);
         deleteTransaction.mockResolvedValue(undefined);
-        window.confirm.mockReturnValue(true);
 
         render(<Report />);
 
@@ -187,7 +185,6 @@ describe('Report', () => {
             },
         ]);
         deleteTransaction.mockResolvedValue(undefined);
-        window.confirm.mockReturnValue(true);
 
         render(<Report />);
 
@@ -243,7 +240,7 @@ describe('Report', () => {
 
         render(<Report />);
 
-        expect(screen.getByRole('heading', { name: 'Personal Financial Tracker' })).toBeInTheDocument();
+        expect(await screen.findByRole('heading', { name: "Test User's Financial Tracker" })).toBeInTheDocument();
         const toggleButton = await screen.findByRole('button', { name: 'Switch to dark mode' });
         expect(document.documentElement.getAttribute('data-theme')).toBe('light');
 
