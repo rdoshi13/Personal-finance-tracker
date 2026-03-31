@@ -59,3 +59,41 @@ Features:
    npm start
    ```
 9. Open `http://localhost:3000`.
+
+## 4. Deploy (Vercel + MongoDB Atlas)
+### Architecture
+- Backend: Vercel project from repo root (`/`)
+- Frontend: Vercel project from `finance-tracker-frontend`
+- Database: MongoDB Atlas M0 cluster
+
+### Production environment variables
+Backend (Vercel project at repo root):
+```env
+MONGO_URI=mongodb+srv://<user>:<password>@<cluster-url>/finance-tracker?retryWrites=true&w=majority
+ALLOWED_ORIGINS=https://<frontend-production-domain>
+ALLOW_VERCEL_PREVIEWS=true
+```
+
+Frontend (Vercel project at `finance-tracker-frontend`):
+```env
+REACT_APP_API_BASE_URL=https://<backend-project>.vercel.app
+```
+
+### Deployment steps
+1. Create MongoDB Atlas M0 cluster.
+2. Create a DB user and copy the SRV connection string for `MONGO_URI`.
+3. In Atlas Network Access, allow `0.0.0.0/0` (quick-launch setup).
+4. Create Vercel project for backend:
+   - Import this repository
+   - Root Directory: `/`
+   - Add backend environment variables above
+5. Create Vercel project for frontend:
+   - Import the same repository
+   - Root Directory: `finance-tracker-frontend`
+   - Add `REACT_APP_API_BASE_URL` pointing to backend URL
+6. Enable GitHub auto-deploy from `main` for both projects.
+
+### CORS behavior in production
+- Requests with no `Origin` header are allowed.
+- Requests from `ALLOWED_ORIGINS` are allowed.
+- If `ALLOW_VERCEL_PREVIEWS=true`, `https://*.vercel.app` preview origins are allowed.
