@@ -774,6 +774,7 @@ const Report = () => {
                 </>
             )}
 
+            <footer className="app-footer">© Rishabh Doshi 2026</footer>
         </div>
     );
 };
