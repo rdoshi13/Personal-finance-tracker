@@ -4,6 +4,8 @@
 Personal Financial Tracker is a full-stack app to track income, expenses, and subscriptions with monthly reporting.
 
 Features:
+- JWT-based authentication (signup/login/logout) with HTTP-only auth cookie sessions
+- Per-user transaction isolation (each user can only access their own transactions)
 - Add, edit, and delete transactions
 - Separate `Name`, `Category`, `Type`, `Amount`, and `Description` fields
 - Search and filter transactions by text, type, category, and date range
@@ -43,6 +45,7 @@ Features:
    ```env
    MONGO_URI=mongodb://127.0.0.1:27017/finance-tracker
    PORT=5001
+   JWT_SECRET=replace-with-a-long-random-secret
    ```
 5. Create frontend environment file at `finance-tracker-frontend/.env`:
    ```env
@@ -70,6 +73,7 @@ Features:
 Backend (Vercel project at repo root):
 ```env
 MONGO_URI=mongodb+srv://<user>:<password>@<cluster-url>/finance-tracker?retryWrites=true&w=majority
+JWT_SECRET=<long-random-secret>
 ALLOWED_ORIGINS=https://<frontend-production-domain>
 ALLOW_VERCEL_PREVIEWS=true
 ```

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
+import AuthSection from './components/AuthSection';
 import TransactionsSection from './components/TransactionsSection';
 import MonthlyReportSection from './components/MonthlyReportSection';
 import MonthlySummaryCards from './components/MonthlySummaryCards';
 import { deleteTransaction, getMonthlyReport, getTransactions } from './api/transactions';
+import { getCurrentUser, logout } from './api/auth';
 
 const THEME_STORAGE_KEY = 'finance-tracker-theme';
 const currentDate = new Date();
@@ -108,6 +110,9 @@ const Report = () => {
     const [isFormVisible, setFormVisible] = useState(false); // Toggle form visibility
     const [isTransactionEditMode, setTransactionEditMode] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState(null);
+    const [authUser, setAuthUser] = useState(null);
+    const [isAuthLoading, setIsAuthLoading] = useState(true);
+    const [authError, setAuthError] = useState('');
     const reportEntries = Object.entries(reportData?.report || {});
     const categoryOptions = Array.from(
         new Set(
@@ -198,6 +203,30 @@ const Report = () => {
     const closeForm = () => {
         setFormVisible(false);
         setEditingTransaction(null);
+    };
+
+    const handleAuthSuccess = (user) => {
+        setAuthUser(user || null);
+        setAuthError('');
+        setReportData(null);
+        setReportError('');
+    };
+
+    const handleLogout = async () => {
+        try {
+            await logout();
+        } catch (error) {
+            console.error('Error during logout:', error);
+        } finally {
+            setAuthUser(null);
+            setAuthError('');
+            setTransactions([]);
+            setReportData(null);
+            setReportError('');
+            setIsReportLoading(false);
+            setTransactionEditMode(false);
+            closeForm();
+        }
     };
 
     const clearTransactionFilters = () => {
@@ -608,15 +637,52 @@ const Report = () => {
         }
     };
 
-    // Fetch transactions when the component loads
     useEffect(() => {
-        fetchTransactions();
+        let isActive = true;
+
+        const bootstrapSession = async () => {
+            setIsAuthLoading(true);
+            setAuthError('');
+
+            try {
+                const response = await getCurrentUser();
+                if (!isActive) return;
+                setAuthUser(response?.user || null);
+            } catch (error) {
+                if (!isActive) return;
+                setAuthUser(null);
+
+                const silentMessages = new Set([
+                    'Authentication required',
+                    'Invalid or expired authentication token',
+                ]);
+
+                if (!silentMessages.has(error.message)) {
+                    setAuthError(error.message || 'Unable to verify session');
+                }
+            } finally {
+                if (isActive) {
+                    setIsAuthLoading(false);
+                }
+            }
+        };
+
+        bootstrapSession();
+
+        return () => {
+            isActive = false;
+        };
     }, []);
 
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
         window.localStorage.setItem(THEME_STORAGE_KEY, theme);
     }, [theme]);
+
+    useEffect(() => {
+        if (!authUser) return;
+        fetchTransactions();
+    }, [authUser]);
 
     return (
         <div className="container">
@@ -632,54 +698,77 @@ const Report = () => {
 
             <header className="app-header">
                 <h1>Personal Financial Tracker</h1>
+                {authUser && (
+                    <div className="auth-header-actions">
+                        <span className="auth-user-email">{authUser.email}</span>
+                        <button type="button" className="secondary-button" onClick={handleLogout}>
+                            Logout
+                        </button>
+                    </div>
+                )}
             </header>
 
-            <MonthlySummaryCards
-                income={monthlySummary.income}
-                expenses={monthlySummary.expenses}
-                net={monthlySummary.net}
-                transactionCount={monthlySummary.transactionCount}
-            />
+            {isAuthLoading ? (
+                <section className="auth-section">
+                    <div className="auth-card">
+                        <h2>Loading session...</h2>
+                    </div>
+                </section>
+            ) : !authUser ? (
+                <>
+                    <AuthSection onAuthSuccess={handleAuthSuccess} />
+                    {authError && <p className="error-text">{authError}</p>}
+                </>
+            ) : (
+                <>
+                    <MonthlySummaryCards
+                        income={monthlySummary.income}
+                        expenses={monthlySummary.expenses}
+                        net={monthlySummary.net}
+                        transactionCount={monthlySummary.transactionCount}
+                    />
 
-            <TransactionsSection
-                transactions={filteredTransactions}
-                totalTransactionsCount={transactions.length}
-                isFormVisible={isFormVisible}
-                isTransactionEditMode={isTransactionEditMode}
-                editingTransaction={editingTransaction}
-                searchQuery={searchQuery}
-                selectedType={selectedType}
-                selectedCategory={selectedCategory}
-                categoryOptions={categoryOptions}
-                startDate={startDate}
-                endDate={endDate}
-                onOpenAddForm={openAddForm}
-                onToggleTransactionEditMode={toggleTransactionEditMode}
-                onOpenEditForm={openEditForm}
-                onCloseForm={closeForm}
-                onTransactionSaved={handleTransactionSaved}
-                onDelete={handleDelete}
-                onSearchQueryChange={setSearchQuery}
-                onTypeChange={setSelectedType}
-                onCategoryChange={setSelectedCategory}
-                onStartDateChange={setStartDate}
-                onEndDateChange={setEndDate}
-                onClearFilters={clearTransactionFilters}
-                formatDate={formatDate}
-            />
+                    <TransactionsSection
+                        transactions={filteredTransactions}
+                        totalTransactionsCount={transactions.length}
+                        isFormVisible={isFormVisible}
+                        isTransactionEditMode={isTransactionEditMode}
+                        editingTransaction={editingTransaction}
+                        searchQuery={searchQuery}
+                        selectedType={selectedType}
+                        selectedCategory={selectedCategory}
+                        categoryOptions={categoryOptions}
+                        startDate={startDate}
+                        endDate={endDate}
+                        onOpenAddForm={openAddForm}
+                        onToggleTransactionEditMode={toggleTransactionEditMode}
+                        onOpenEditForm={openEditForm}
+                        onCloseForm={closeForm}
+                        onTransactionSaved={handleTransactionSaved}
+                        onDelete={handleDelete}
+                        onSearchQueryChange={setSearchQuery}
+                        onTypeChange={setSelectedType}
+                        onCategoryChange={setSelectedCategory}
+                        onStartDateChange={setStartDate}
+                        onEndDateChange={setEndDate}
+                        onClearFilters={clearTransactionFilters}
+                        formatDate={formatDate}
+                    />
 
-            <MonthlyReportSection
-                year={year}
-                month={month}
-                onYearChange={setYear}
-                onMonthChange={setMonth}
-                isReportLoading={isReportLoading}
-                onFetchReport={fetchReport}
-                onGeneratePDF={generatePDF}
-                reportData={reportData}
-                reportError={reportError}
-                reportEntries={reportEntries}
-            />
+                    <MonthlyReportSection
+                        year={year}
+                        month={month}
+                        onYearChange={setYear}
+                        onMonthChange={setMonth}
+                        isReportLoading={isReportLoading}
+                        onFetchReport={fetchReport}
+                        onGeneratePDF={generatePDF}
+                        reportData={reportData}
+                        reportError={reportError}
+                        reportEntries={reportEntries}
+                    />
+                </>
+            )}
 
         </div>
     );

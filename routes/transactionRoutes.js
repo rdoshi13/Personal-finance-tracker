@@ -19,14 +19,17 @@ const normalizeUpdatePayload = (payload) => {
 
 const updateTransactionById = async (req, res) => {
     try {
+        const userId = req.user.id;
         const payload = normalizeUpdatePayload(req.body || {});
 
         if (Object.prototype.hasOwnProperty.call(payload, 'name') && !payload.name) {
             return res.status(400).json({ message: 'Name is required' });
         }
 
-        const updatedTransaction = await Transaction.findByIdAndUpdate(
-            req.params.id,
+        delete payload.userId;
+
+        const updatedTransaction = await Transaction.findOneAndUpdate(
+            { _id: req.params.id, userId },
             payload,
             { new: true, runValidators: true }
         );
@@ -47,7 +50,8 @@ const updateTransactionById = async (req, res) => {
 
 const deleteTransactionById = async (req, res) => {
     try {
-        const deletedTransaction = await Transaction.findByIdAndDelete(req.params.id);
+        const userId = req.user.id;
+        const deletedTransaction = await Transaction.findOneAndDelete({ _id: req.params.id, userId });
 
         if (!deletedTransaction) {
             return res.status(404).json({ message: 'Transaction not found' });
@@ -66,15 +70,17 @@ const deleteTransactionById = async (req, res) => {
 // Create a new transaction
 router.post('/', async (req, res) => {
     try {
+        const userId = req.user.id;
         const payload = { ...req.body };
         payload.name = typeof payload.name === 'string' ? payload.name.trim() : '';
         payload.category = typeof payload.category === 'string' ? payload.category.trim() : payload.category;
+        delete payload.userId;
 
         if (!payload.name) {
             return res.status(400).json({ message: 'Name is required' });
         }
 
-        const newTransaction = new Transaction(payload);
+        const newTransaction = new Transaction({ ...payload, userId });
         await newTransaction.save();
         res.status(201).json(newTransaction);
     } catch (err) {
@@ -85,7 +91,7 @@ router.post('/', async (req, res) => {
 // Read all transactions
 router.get('/', async (req, res) => {
     try {
-        const transactions = await Transaction.find();
+        const transactions = await Transaction.find({ userId: req.user.id }).sort({ date: -1 });
         res.json(transactions);
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -105,12 +111,14 @@ router.post('/:id/delete', deleteTransactionById);
 // Fetch transactions for a specific month
 router.get('/report/:year/:month', async (req, res) => {
     const { year, month } = req.params;
+    const userId = req.user.id;
     const startDate = new Date(`${year}-${month}-01`);
     const endDate = new Date(startDate);
     endDate.setMonth(endDate.getMonth() + 1); // Move to the next month
 
     try {
         const transactions = await Transaction.find({
+            userId,
             date: {
                 $gte: startDate,
                 $lt: endDate

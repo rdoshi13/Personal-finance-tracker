@@ -2,8 +2,11 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
+const authRoutes = require('./routes/authRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
 const { connectToDatabase } = require('./lib/mongo');
+const { requireAuth } = require('./middleware/auth');
 
 const parseAllowedOrigins = () => {
     const rawOrigins = process.env.ALLOWED_ORIGINS || '';
@@ -57,12 +60,15 @@ const corsOptions = {
         callback(new Error('Not allowed by CORS'));
     },
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
 };
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
 app.use(express.json());
+app.use(cookieParser());
 
 app.use(async (req, res, next) => {
     if (req.method === 'OPTIONS') {
@@ -78,7 +84,8 @@ app.use(async (req, res, next) => {
     }
 });
 
-app.use('/api/transactions', transactionRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/transactions', requireAuth, transactionRoutes);
 
 app.use((error, req, res, next) => {
     if (error && error.message === 'Not allowed by CORS') {
@@ -88,6 +95,11 @@ app.use((error, req, res, next) => {
 
     if (error && error.message === 'MONGO_URI is not configured') {
         res.status(500).json({ message: 'Server database configuration error' });
+        return;
+    }
+
+    if (error && error.message === 'JWT_SECRET is not configured') {
+        res.status(500).json({ message: 'Server auth configuration error' });
         return;
     }
 

@@ -1,11 +1,39 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import Report from './Report';
 import { deleteTransaction, getMonthlyReport, getTransactions } from './api/transactions';
+import { getCurrentUser, logout } from './api/auth';
+
+jest.mock('jspdf', () =>
+    jest.fn().mockImplementation(() => ({
+        internal: {
+            pageSize: {
+                getWidth: () => 210,
+                getHeight: () => 297,
+            },
+        },
+        setFillColor: jest.fn(),
+        rect: jest.fn(),
+        setTextColor: jest.fn(),
+        setFontSize: jest.fn(),
+        setFont: jest.fn(),
+        text: jest.fn(),
+        addPage: jest.fn(),
+        splitTextToSize: (value) => [String(value)],
+        getTextWidth: () => 10,
+        setDrawColor: jest.fn(),
+        save: jest.fn(),
+    }))
+);
 
 jest.mock('./api/transactions', () => ({
     deleteTransaction: jest.fn(),
     getMonthlyReport: jest.fn(),
     getTransactions: jest.fn(),
+}));
+
+jest.mock('./api/auth', () => ({
+    getCurrentUser: jest.fn(),
+    logout: jest.fn(),
 }));
 
 describe('Report', () => {
@@ -14,6 +42,14 @@ describe('Report', () => {
         window.localStorage.clear();
         document.documentElement.removeAttribute('data-theme');
         window.confirm = jest.fn();
+        getCurrentUser.mockResolvedValue({
+            user: {
+                id: 'user-1',
+                name: 'Test User',
+                email: 'test@example.com',
+            },
+        });
+        logout.mockResolvedValue({ message: 'Logged out' });
     });
 
     test('loads and renders transactions', async () => {
@@ -58,7 +94,7 @@ describe('Report', () => {
 
         render(<Report />);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Load Report' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Load Report' }));
         expect(await screen.findByText('Total Income')).toBeInTheDocument();
         expect(screen.getByText('Total Expenses')).toBeInTheDocument();
         expect(screen.getByText('Income by Category')).toBeInTheDocument();
@@ -218,5 +254,15 @@ describe('Report', () => {
         });
         expect(window.localStorage.getItem('finance-tracker-theme')).toBe('dark');
         expect(screen.getByRole('button', { name: 'Switch to light mode' })).toBeInTheDocument();
+    });
+
+    test('shows sign in when user is not authenticated', async () => {
+        getCurrentUser.mockRejectedValue(new Error('Authentication required'));
+
+        render(<Report />);
+
+        expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+        expect(screen.getByText('New here? Create an account')).toBeInTheDocument();
+        expect(getTransactions).not.toHaveBeenCalled();
     });
 });

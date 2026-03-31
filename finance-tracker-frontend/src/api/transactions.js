@@ -18,7 +18,10 @@ const requestJson = async (path, options = {}, fallbackError = 'Request failed')
     let data;
 
     try {
-        response = await fetch(`${API_BASE_URL}${path}`, options);
+        response = await fetch(`${API_BASE_URL}${path}`, {
+            credentials: 'include',
+            ...options,
+        });
         data = await response.json().catch(() => null);
     } catch (error) {
         if (isNetworkFetchError(error)) {
@@ -83,6 +86,7 @@ const deleteTransaction = async (transactionId) => {
     try {
         const response = await fetch(`${API_BASE_URL}/api/transactions/${normalizedId}`, {
             method: 'DELETE',
+            credentials: 'include',
         });
 
         if (!response.ok) {
