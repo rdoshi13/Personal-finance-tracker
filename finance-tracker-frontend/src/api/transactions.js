@@ -11,10 +11,21 @@ const normalizeTransactionId = (transactionId) => {
     }
     return normalizedId;
 };
+const isNetworkFetchError = (error) => error instanceof TypeError || error?.message === 'Failed to fetch';
 
 const requestJson = async (path, options = {}, fallbackError = 'Request failed') => {
-    const response = await fetch(`${API_BASE_URL}${path}`, options);
-    const data = await response.json().catch(() => null);
+    let response;
+    let data;
+
+    try {
+        response = await fetch(`${API_BASE_URL}${path}`, options);
+        data = await response.json().catch(() => null);
+    } catch (error) {
+        if (isNetworkFetchError(error)) {
+            throw new Error('Failed to fetch');
+        }
+        throw error;
+    }
 
     if (!response.ok) {
         const message = data?.message || fallbackError;
@@ -50,16 +61,44 @@ const updateTransaction = async (transactionId, transaction) =>
             body: JSON.stringify(transaction),
         },
         'Failed to update transaction'
-    );
+    ).catch((error) => {
+        if (!isNetworkFetchError(error)) {
+            throw error;
+        }
 
-const deleteTransaction = async (transactionId) => {
-    const response = await fetch(`${API_BASE_URL}/api/transactions/${normalizeTransactionId(transactionId)}`, {
-        method: 'DELETE',
+        return requestJson(
+            `/api/transactions/${normalizeTransactionId(transactionId)}/update`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(transaction),
+            },
+            'Failed to update transaction'
+        );
     });
 
-    if (!response.ok) {
-        const message = await parseErrorMessage(response, 'Failed to delete transaction');
-        throw new Error(message);
+const deleteTransaction = async (transactionId) => {
+    const normalizedId = normalizeTransactionId(transactionId);
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/transactions/${normalizedId}`, {
+            method: 'DELETE',
+        });
+
+        if (!response.ok) {
+            const message = await parseErrorMessage(response, 'Failed to delete transaction');
+            throw new Error(message);
+        }
+    } catch (error) {
+        if (!isNetworkFetchError(error)) {
+            throw error;
+        }
+
+        await requestJson(
+            `/api/transactions/${normalizedId}/delete`,
+            { method: 'POST' },
+            'Failed to delete transaction'
+        );
     }
 };
 

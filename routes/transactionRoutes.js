@@ -3,6 +3,66 @@ const express = require('express');
 const router = express.Router();
 const Transaction = require('../models/Transaction');
 
+const normalizeUpdatePayload = (payload) => {
+    const normalizedPayload = { ...payload };
+
+    if (Object.prototype.hasOwnProperty.call(normalizedPayload, 'name')) {
+        normalizedPayload.name = typeof normalizedPayload.name === 'string' ? normalizedPayload.name.trim() : '';
+    }
+
+    if (Object.prototype.hasOwnProperty.call(normalizedPayload, 'category') && typeof normalizedPayload.category === 'string') {
+        normalizedPayload.category = normalizedPayload.category.trim();
+    }
+
+    return normalizedPayload;
+};
+
+const updateTransactionById = async (req, res) => {
+    try {
+        const payload = normalizeUpdatePayload(req.body || {});
+
+        if (Object.prototype.hasOwnProperty.call(payload, 'name') && !payload.name) {
+            return res.status(400).json({ message: 'Name is required' });
+        }
+
+        const updatedTransaction = await Transaction.findByIdAndUpdate(
+            req.params.id,
+            payload,
+            { new: true, runValidators: true }
+        );
+
+        if (!updatedTransaction) {
+            return res.status(404).json({ message: 'Transaction not found' });
+        }
+
+        res.json(updatedTransaction);
+    } catch (err) {
+        if (err.name === 'CastError') {
+            return res.status(400).json({ message: 'Invalid transaction id' });
+        }
+
+        res.status(400).json({ message: err.message });
+    }
+};
+
+const deleteTransactionById = async (req, res) => {
+    try {
+        const deletedTransaction = await Transaction.findByIdAndDelete(req.params.id);
+
+        if (!deletedTransaction) {
+            return res.status(404).json({ message: 'Transaction not found' });
+        }
+
+        res.json({ message: 'Transaction deleted' });
+    } catch (err) {
+        if (err.name === 'CastError') {
+            return res.status(400).json({ message: 'Invalid transaction id' });
+        }
+
+        res.status(500).json({ message: err.message });
+    }
+};
+
 // Create a new transaction
 router.post('/', async (req, res) => {
     try {
@@ -33,48 +93,14 @@ router.get('/', async (req, res) => {
 });
 
 // Update a transaction
-router.put('/:id', async (req, res) => {
-    try {
-        const payload = { ...req.body };
-        if (Object.prototype.hasOwnProperty.call(payload, 'name')) {
-            payload.name = typeof payload.name === 'string' ? payload.name.trim() : '';
-            if (!payload.name) {
-                return res.status(400).json({ message: 'Name is required' });
-            }
-        }
-        if (Object.prototype.hasOwnProperty.call(payload, 'category') && typeof payload.category === 'string') {
-            payload.category = payload.category.trim();
-        }
-
-        const updatedTransaction = await Transaction.findByIdAndUpdate(
-            req.params.id,
-            payload,
-            { new: true, runValidators: true }
-        );
-        res.json(updatedTransaction);
-    } catch (err) {
-        res.status(400).json({ message: err.message });
-    }
-});
+router.put('/:id', updateTransactionById);
+// Fallback for environments that block PUT but allow POST
+router.post('/:id/update', updateTransactionById);
 
 // Delete a transaction
-router.delete('/:id', async (req, res) => {
-    try {
-        const deletedTransaction = await Transaction.findByIdAndDelete(req.params.id);
-
-        if (!deletedTransaction) {
-            return res.status(404).json({ message: 'Transaction not found' });
-        }
-
-        res.json({ message: 'Transaction deleted' });
-    } catch (err) {
-        if (err.name === 'CastError') {
-            return res.status(400).json({ message: 'Invalid transaction id' });
-        }
-
-        res.status(500).json({ message: err.message });
-    }
-});
+router.delete('/:id', deleteTransactionById);
+// Fallback for environments that block DELETE but allow POST
+router.post('/:id/delete', deleteTransactionById);
 
 // Fetch transactions for a specific month
 router.get('/report/:year/:month', async (req, res) => {
