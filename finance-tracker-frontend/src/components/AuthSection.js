@@ -6,6 +6,7 @@ const AuthSection = ({ onAuthSuccess }) => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formError, setFormError] = useState('');
 
@@ -20,6 +21,7 @@ const AuthSection = ({ onAuthSuccess }) => {
     const toggleMode = () => {
         setFormError('');
         setMode((previousMode) => (previousMode === 'login' ? 'signup' : 'login'));
+        setShowPassword(false);
         resetForm();
     };
 
@@ -90,15 +92,25 @@ const AuthSection = ({ onAuthSuccess }) => {
 
                     <div className="auth-field">
                         <label htmlFor="auth-password">Password</label>
-                        <input
-                            id="auth-password"
-                            type="password"
-                            value={password}
-                            onChange={(event) => setPassword(event.target.value)}
-                            placeholder={isSignupMode ? 'Minimum 8 characters' : 'Enter password'}
-                            minLength={8}
-                            required
-                        />
+                        <div className="password-field-wrapper">
+                            <input
+                                id="auth-password"
+                                type={showPassword ? 'text' : 'password'}
+                                value={password}
+                                onChange={(event) => setPassword(event.target.value)}
+                                placeholder={isSignupMode ? 'Minimum 8 characters' : 'Enter password'}
+                                minLength={8}
+                                required
+                            />
+                            <button
+                                type="button"
+                                className="password-visibility-toggle"
+                                onClick={() => setShowPassword((previousState) => !previousState)}
+                                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                            >
+                                {showPassword ? 'Hide' : 'Show'}
+                            </button>
+                        </div>
                     </div>
 
                     <button type="submit" disabled={isSubmitting}>

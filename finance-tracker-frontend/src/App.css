@@ -748,6 +748,33 @@ button:disabled {
   box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
+.password-field-wrapper {
+  position: relative;
+}
+
+.password-field-wrapper input {
+  padding-right: 76px;
+}
+
+.password-visibility-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  color: var(--button-primary);
+  border: 0;
+  padding: 4px 6px;
+  font-size: 0.9rem;
+  line-height: 1;
+  border-radius: 4px;
+}
+
+.password-visibility-toggle:hover {
+  background: transparent;
+  color: var(--button-primary-hover);
+}
+
 .link-button {
   margin-top: 10px;
   padding: 0;
