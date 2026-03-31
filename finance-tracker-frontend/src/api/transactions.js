@@ -4,6 +4,13 @@ const parseErrorMessage = async (response, fallbackMessage) => {
     const errorData = await response.json().catch(() => ({}));
     return errorData.message || fallbackMessage;
 };
+const normalizeTransactionId = (transactionId) => {
+    const normalizedId = String(transactionId || '').trim();
+    if (!normalizedId) {
+        throw new Error('Missing transaction id');
+    }
+    return normalizedId;
+};
 
 const requestJson = async (path, options = {}, fallbackError = 'Request failed') => {
     const response = await fetch(`${API_BASE_URL}${path}`, options);
@@ -36,7 +43,7 @@ const createTransaction = async (transaction) =>
 
 const updateTransaction = async (transactionId, transaction) =>
     requestJson(
-        `/api/transactions/${transactionId}`,
+        `/api/transactions/${normalizeTransactionId(transactionId)}`,
         {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -46,7 +53,7 @@ const updateTransaction = async (transactionId, transaction) =>
     );
 
 const deleteTransaction = async (transactionId) => {
-    const response = await fetch(`${API_BASE_URL}/api/transactions/${transactionId}`, {
+    const response = await fetch(`${API_BASE_URL}/api/transactions/${normalizeTransactionId(transactionId)}`, {
         method: 'DELETE',
     });
 

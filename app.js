@@ -37,7 +37,7 @@ if (process.env.NODE_ENV === 'production' && allowedOrigins.size === 0) {
 
 const app = express();
 
-app.use(cors({
+const corsOptions = {
     origin: (origin, callback) => {
         if (!origin) {
             callback(null, true);
@@ -56,11 +56,20 @@ app.use(cors({
 
         callback(new Error('Not allowed by CORS'));
     },
-}));
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 app.use(express.json());
 
 app.use(async (req, res, next) => {
+    if (req.method === 'OPTIONS') {
+        res.sendStatus(204);
+        return;
+    }
+
     try {
         await connectToDatabase();
         next();

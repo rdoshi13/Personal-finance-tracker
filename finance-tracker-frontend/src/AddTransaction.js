@@ -20,13 +20,14 @@ const EMPTY_TRANSACTION = {
     amount: '',
     description: '',
 };
+const getTransactionId = (transaction) => transaction?._id || transaction?.id || '';
 
 const AddTransaction = ({ onSaved, onCancel, editingTransaction }) => {
     const [transaction, setTransaction] = useState(EMPTY_TRANSACTION);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formError, setFormError] = useState('');
 
-    const isEditMode = Boolean(editingTransaction?._id);
+    const isEditMode = Boolean(getTransactionId(editingTransaction));
 
     useEffect(() => {
         if (isEditMode) {
@@ -93,8 +94,14 @@ const AddTransaction = ({ onSaved, onCancel, editingTransaction }) => {
                 name: normalizedName,
                 amount: Number(transaction.amount),
             };
+
+            if (isEditMode && !getTransactionId(editingTransaction)) {
+                setFormError('Missing transaction id');
+                return;
+            }
+
             const data = isEditMode
-                ? await updateTransaction(editingTransaction._id, payload)
+                ? await updateTransaction(getTransactionId(editingTransaction), payload)
                 : await createTransaction(payload);
             onSaved(data, isEditMode ? 'edit' : 'add');
         } catch (error) {
