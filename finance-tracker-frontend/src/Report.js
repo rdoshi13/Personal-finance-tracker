@@ -75,6 +75,7 @@ const getMonthlyTransactions = (sourceTransactions, year, month) => {
             return rightDate - leftDate;
         });
 };
+const getTransactionId = (transaction) => transaction?._id || transaction?.id || '';
 
 const MoonIcon = () => (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -208,10 +209,12 @@ const Report = () => {
     };
 
     const handleTransactionSaved = (savedTransaction, mode) => {
+        const savedTransactionId = getTransactionId(savedTransaction);
+
         if (mode === 'edit') {
             setTransactions((previousTransactions) =>
                 previousTransactions.map((transaction) =>
-                    transaction._id === savedTransaction._id ? savedTransaction : transaction
+                    getTransactionId(transaction) === savedTransactionId ? savedTransaction : transaction
                 )
             );
         } else {
@@ -577,21 +580,31 @@ const Report = () => {
     };
 
     // Delete a specific transaction from its list row
-    const handleDelete = async (transactionId) => {
+    const handleDelete = async (transactionOrId) => {
+        const transactionId = typeof transactionOrId === 'string'
+            ? transactionOrId
+            : getTransactionId(transactionOrId);
+
+        if (!transactionId) {
+            window.alert('Unable to delete this transaction: missing id.');
+            return;
+        }
+
         if (!window.confirm('Are you sure you want to delete this transaction?')) return;
 
         try {
             await deleteTransaction(transactionId);
 
             setTransactions((previousTransactions) =>
-                previousTransactions.filter((transaction) => transaction._id !== transactionId)
+                previousTransactions.filter((transaction) => getTransactionId(transaction) !== transactionId)
             );
 
-            if (editingTransaction?._id === transactionId) {
+            if (getTransactionId(editingTransaction) === transactionId) {
                 closeForm();
             }
         } catch (error) {
             console.error('Error deleting transaction:', error);
+            window.alert(error.message || 'Failed to delete transaction');
         }
     };
 

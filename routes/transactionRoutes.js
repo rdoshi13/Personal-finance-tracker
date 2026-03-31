@@ -60,9 +60,18 @@ router.put('/:id', async (req, res) => {
 // Delete a transaction
 router.delete('/:id', async (req, res) => {
     try {
-        await Transaction.findByIdAndDelete(req.params.id);
+        const deletedTransaction = await Transaction.findByIdAndDelete(req.params.id);
+
+        if (!deletedTransaction) {
+            return res.status(404).json({ message: 'Transaction not found' });
+        }
+
         res.json({ message: 'Transaction deleted' });
     } catch (err) {
+        if (err.name === 'CastError') {
+            return res.status(400).json({ message: 'Invalid transaction id' });
+        }
+
         res.status(500).json({ message: err.message });
     }
 });

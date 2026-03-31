@@ -24,3 +24,7 @@ pnpm-debug.log*
 dist/
 build/
 coverage/
+
+# Local agent instructions
+AGENTS.md
+finance-tracker-frontend/AGENTS.md

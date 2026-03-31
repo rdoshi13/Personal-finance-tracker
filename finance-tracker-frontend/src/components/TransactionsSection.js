@@ -4,6 +4,7 @@ import AddTransaction from '../AddTransaction';
 const getAmountClassName = (type) => (type === 'income' ? 'amount-income' : 'amount-outflow');
 const getTransactionName = (transaction) => transaction.name || 'Unnamed transaction';
 const getTransactionCategory = (transaction) => transaction.category || 'Uncategorized';
+const getTransactionId = (transaction) => transaction?._id || transaction?.id || '';
 
 const PencilIcon = () => (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -132,8 +133,8 @@ const TransactionsSection = ({
             <p>{totalTransactionsCount === 0 ? 'No transactions added yet.' : 'No transactions match these filters.'}</p>
         ) : (
             <ul>
-                {transactions.map((transaction) => (
-                    <li key={transaction._id} className="transaction-item">
+                {transactions.map((transaction, index) => (
+                    <li key={getTransactionId(transaction) || `${getTransactionName(transaction)}-${index}`} className="transaction-item">
                         <div className="transaction-grid">
                             <div className="transaction-cell">
                                 <span className="transaction-label">Name</span>
@@ -170,7 +171,7 @@ const TransactionsSection = ({
                                 </button>
                                 <button
                                     className="icon-button icon-delete"
-                                    onClick={() => onDelete(transaction._id)}
+                                    onClick={() => onDelete(transaction)}
                                     aria-label={`Delete ${getTransactionName(transaction)}`}
                                     title="Delete transaction"
                                 >

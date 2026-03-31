@@ -138,6 +138,35 @@ describe('Report', () => {
         });
     });
 
+    test('deletes a transaction when API returns id instead of _id', async () => {
+        getTransactions.mockResolvedValue([
+            {
+                id: 'id-only-1',
+                type: 'expense',
+                name: 'Coffee',
+                category: 'Food',
+                amount: 8,
+                description: 'Morning',
+                date: '2026-03-03T00:00:00.000Z',
+            },
+        ]);
+        deleteTransaction.mockResolvedValue(undefined);
+        window.confirm.mockReturnValue(true);
+
+        render(<Report />);
+
+        expect(await screen.findByText('Coffee')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+        fireEvent.click(screen.getByRole('button', { name: /Delete Coffee/i }));
+
+        await waitFor(() => {
+            expect(deleteTransaction).toHaveBeenCalledWith('id-only-1');
+        });
+        await waitFor(() => {
+            expect(screen.queryByText('Coffee')).not.toBeInTheDocument();
+        });
+    });
+
     test('filters transactions by search text', async () => {
         getTransactions.mockResolvedValue([
             {
