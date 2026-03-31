@@ -74,7 +74,7 @@ Backend (Vercel project at repo root):
 ```env
 MONGO_URI=mongodb+srv://<user>:<password>@<cluster-url>/finance-tracker?retryWrites=true&w=majority
 JWT_SECRET=<long-random-secret>
-ALLOWED_ORIGINS=https://<frontend-production-domain>
+ALLOWED_ORIGINS=https://budget.rishabhdoshi.me
 ALLOW_VERCEL_PREVIEWS=true
 ```
 
@@ -96,6 +96,14 @@ REACT_APP_API_BASE_URL=https://<backend-project>.vercel.app
    - Root Directory: `finance-tracker-frontend`
    - Add `REACT_APP_API_BASE_URL` pointing to backend URL
 6. Enable GitHub auto-deploy from `main` for both projects.
+
+### Custom domain (`budget.rishabhdoshi.me`)
+1. In Vercel, open the **frontend** project.
+2. Go to **Settings → Domains** and add `budget.rishabhdoshi.me`.
+3. Add the DNS record your Vercel domain screen shows (usually a `CNAME` for `budget`).
+4. In backend Vercel env vars, set:
+   - `ALLOWED_ORIGINS=https://budget.rishabhdoshi.me`
+5. Redeploy backend so updated CORS settings are active.
 
 ### CORS behavior in production
 - Requests with no `Origin` header are allowed.
