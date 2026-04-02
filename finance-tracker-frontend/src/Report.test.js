@@ -136,6 +136,7 @@ describe('Report', () => {
         render(<Report />);
 
         expect(await screen.findByText('Monthly salary')).toBeInTheDocument();
+        fireEvent.change(screen.getByLabelText('Month'), { target: { value: '03' } });
         fireEvent.click(screen.getByRole('button', { name: 'Load Report' }));
 
         expect(await screen.findByText('Income by Category')).toBeInTheDocument();
