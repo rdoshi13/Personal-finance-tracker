@@ -181,6 +181,44 @@ body {
   margin-top: 30px;
 }
 
+.dashboard-period-controls {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dashboard-period-controls label {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.dashboard-period-controls input,
+.dashboard-period-controls select {
+  box-sizing: border-box;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--bg-input);
+  color: var(--text-primary);
+}
+
+.dashboard-period-controls input {
+  flex: 0 0 74px;
+  width: 74px;
+  max-width: 74px;
+}
+
+.dashboard-period-controls select {
+  flex: 0 0 118px;
+  width: 118px;
+  max-width: 118px;
+}
+
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -222,6 +260,46 @@ body {
 ul {
   list-style-type: none;
   padding: 0;
+}
+
+.transactions-scroll {
+  max-height: min(720px, 64vh);
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-gutter: stable;
+}
+
+.transaction-month-group {
+  margin-top: 12px;
+}
+
+.transaction-month-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin-bottom: 10px;
+  padding: 11px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background-color: var(--text-primary);
+  color: var(--bg-card);
+  border: 1px solid var(--text-primary);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px var(--shadow-color);
+}
+
+.transaction-month-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.transaction-month-header span {
+  color: var(--bg-card);
+  font-size: 0.9rem;
+  white-space: nowrap;
+  opacity: 0.82;
 }
 
 .transaction-item {
@@ -466,11 +544,17 @@ button:hover {
   margin-top: 12px;
 }
 
+.success-text {
+  color: var(--positive-text);
+  margin-top: 12px;
+}
+
 .action-buttons {
   margin-top: 20px;
   display: flex;
   justify-content: center;
   gap: 20px;
+  flex-wrap: wrap;
 }
 
 .transactions-filters {
@@ -687,6 +771,100 @@ button:disabled {
   gap: 12px;
 }
 
+.import-modal-content {
+  width: min(1120px, 100%);
+}
+
+.import-modal {
+  text-align: left;
+}
+
+.import-controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.65fr) minmax(280px, 1fr);
+  gap: 14px;
+  align-items: end;
+}
+
+.import-summary-grid {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.import-summary-grid span {
+  padding: 10px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+}
+
+.import-table-wrap {
+  margin-top: 18px;
+  overflow-x: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.import-table {
+  width: 100%;
+  min-width: 940px;
+  border-collapse: collapse;
+  background-color: var(--bg-card);
+}
+
+.import-table th,
+.import-table td {
+  border-bottom: 1px solid var(--border-color);
+  padding: 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.import-table th {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background-color: var(--bg-surface);
+}
+
+.import-table input,
+.import-table select {
+  width: 100%;
+  min-width: 120px;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--bg-input);
+  color: var(--text-primary);
+  box-sizing: border-box;
+}
+
+.import-status {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background-color: var(--report-track);
+  color: var(--text-primary);
+  text-transform: capitalize;
+  font-size: 0.8rem;
+}
+
+.import-row-duplicate .import-status,
+.import-row-invalid .import-status {
+  color: var(--negative-text);
+}
+
+.import-row-error {
+  display: block;
+  margin-top: 6px;
+  color: var(--negative-text);
+  font-size: 0.8rem;
+}
+
 .auth-section {
   margin-top: 30px;
   display: flex;
@@ -811,6 +989,10 @@ button:disabled {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .dashboard-period-controls {
+    justify-content: flex-start;
+  }
+
   .transactions-filters {
     justify-content: stretch;
   }
@@ -826,6 +1008,14 @@ button:disabled {
   .transaction-grid {
     min-width: 100%;
     grid-template-columns: 1fr 1fr;
+  }
+
+  .import-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .import-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -851,6 +1041,29 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .dashboard-period-controls {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .dashboard-period-controls input,
+  .dashboard-period-controls select {
+    width: 100%;
+    max-width: none;
+  }
+
+  .transactions-scroll {
+    max-height: 68vh;
+    padding-right: 2px;
+  }
+
+  .transaction-month-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
   .filter-search,
   .filter-select,
   .filter-date,
@@ -868,6 +1081,10 @@ button:disabled {
   }
 
   .transaction-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .import-summary-grid {
     grid-template-columns: 1fr;
   }
 

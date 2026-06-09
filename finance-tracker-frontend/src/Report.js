@@ -4,6 +4,7 @@ import AuthSection from './components/AuthSection';
 import TransactionsSection from './components/TransactionsSection';
 import MonthlyReportSection from './components/MonthlyReportSection';
 import MonthlySummaryCards from './components/MonthlySummaryCards';
+import ImportStatementModal from './components/ImportStatementModal';
 import { deleteTransaction, getMonthlyReport, getTransactions } from './api/transactions';
 import { getCurrentUser, logout } from './api/auth';
 
@@ -11,25 +12,39 @@ const THEME_STORAGE_KEY = 'finance-tracker-theme';
 const currentDate = new Date();
 const defaultYear = String(currentDate.getFullYear());
 const defaultMonth = String(currentDate.getMonth() + 1).padStart(2, '0');
-const currentYear = currentDate.getFullYear();
-const currentMonthIndex = currentDate.getMonth();
 
-const getMonthDateRange = (year, month) => {
-    const startDate = new Date(`${year}-${month}-01T00:00:00`);
-    const endDate = new Date(startDate);
-    endDate.setMonth(endDate.getMonth() + 1);
-    return { startDate, endDate };
+const getTransactionDateKey = (dateValue) => {
+    if (!dateValue) return '';
+
+    const rawValue = String(dateValue);
+    const isoDateMatch = rawValue.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (isoDateMatch) return isoDateMatch[1];
+
+    const parsedDate = new Date(rawValue);
+    if (Number.isNaN(parsedDate.getTime())) return '';
+
+    const year = parsedDate.getFullYear();
+    const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+    const day = String(parsedDate.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 };
 
-const buildBreakdownByTypeFromTransactions = (transactions, year, month) => {
-    const { startDate, endDate } = getMonthDateRange(year, month);
+const getDateFromKey = (dateKey) => {
+    const match = String(dateKey || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
 
+    const [, year, month, day] = match;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+};
+
+const isDateKeyInMonth = (dateKey, year, month) => String(dateKey || '').startsWith(`${year}-${month}`);
+
+const buildBreakdownByTypeFromTransactions = (transactions, year, month) => {
     return transactions.reduce((breakdown, transaction) => {
         if (!transaction?.date) return breakdown;
 
-        const transactionDate = new Date(transaction.date);
-        if (Number.isNaN(transactionDate.getTime())) return breakdown;
-        if (transactionDate < startDate || transactionDate >= endDate) return breakdown;
+        const transactionDateKey = getTransactionDateKey(transaction.date);
+        if (!isDateKeyInMonth(transactionDateKey, year, month)) return breakdown;
 
         const category = transaction.category || 'Uncategorized';
         const amount = Number(transaction.amount) || 0;
@@ -63,18 +78,15 @@ const formatCurrency = (value) =>
 const sortEntriesByTotalDesc = (entries) =>
     [...entries].sort(([, leftSummary], [, rightSummary]) => (rightSummary?.total ?? 0) - (leftSummary?.total ?? 0));
 const getMonthlyTransactions = (sourceTransactions, year, month) => {
-    const { startDate, endDate } = getMonthDateRange(year, month);
     return sourceTransactions
         .filter((transaction) => {
-            if (!transaction?.date) return false;
-            const transactionDate = new Date(transaction.date);
-            if (Number.isNaN(transactionDate.getTime())) return false;
-            return transactionDate >= startDate && transactionDate < endDate;
+            const transactionDateKey = getTransactionDateKey(transaction?.date);
+            return isDateKeyInMonth(transactionDateKey, year, month);
         })
         .sort((left, right) => {
-            const leftDate = new Date(left.date).getTime();
-            const rightDate = new Date(right.date).getTime();
-            return rightDate - leftDate;
+            const leftDate = getTransactionDateKey(left.date);
+            const rightDate = getTransactionDateKey(right.date);
+            return rightDate.localeCompare(leftDate);
         });
 };
 const getTransactionId = (transaction) => transaction?._id || transaction?.id || '';
@@ -114,6 +126,7 @@ const Report = () => {
     const [year, setYear] = useState(defaultYear);
     const [month, setMonth] = useState(defaultMonth);
     const [isFormVisible, setFormVisible] = useState(false); // Toggle form visibility
+    const [isImportModalVisible, setImportModalVisible] = useState(false);
     const [isTransactionEditMode, setTransactionEditMode] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState(null);
     const [authUser, setAuthUser] = useState(null);
@@ -128,16 +141,8 @@ const Report = () => {
         )
     ).sort((left, right) => left.localeCompare(right));
     const monthlySummary = transactions.reduce((summary, transaction) => {
-        if (!transaction?.date) return summary;
-
-        const transactionDate = new Date(transaction.date);
-        if (Number.isNaN(transactionDate.getTime())) return summary;
-
-        const isCurrentMonth =
-            transactionDate.getFullYear() === currentYear &&
-            transactionDate.getMonth() === currentMonthIndex;
-
-        if (!isCurrentMonth) return summary;
+        const transactionDateKey = getTransactionDateKey(transaction?.date);
+        if (!isDateKeyInMonth(transactionDateKey, year, month)) return summary;
 
         const amount = Number(transaction.amount) || 0;
         summary.transactionCount += 1;
@@ -158,8 +163,9 @@ const Report = () => {
     });
     const normalizedSearch = searchQuery.trim().toLowerCase();
     const filteredTransactions = transactions.filter((transaction) => {
-        const transactionDate = transaction?.date ? new Date(transaction.date) : null;
-        const hasValidDate = transactionDate && !Number.isNaN(transactionDate.getTime());
+        const transactionDateKey = getTransactionDateKey(transaction?.date);
+        const transactionDate = getDateFromKey(transactionDateKey);
+        const hasValidDate = Boolean(transactionDate);
 
         const matchesType = selectedType === 'all' || transaction.type === selectedType;
         const matchesCategory =
@@ -185,13 +191,17 @@ const Report = () => {
 
     const formatDate = (dateValue) => {
         if (!dateValue) return 'No date';
-        const parsedDate = new Date(dateValue);
-        return Number.isNaN(parsedDate.getTime()) ? 'Invalid date' : parsedDate.toLocaleDateString();
+        const parsedDate = getDateFromKey(getTransactionDateKey(dateValue));
+        return !parsedDate || Number.isNaN(parsedDate.getTime()) ? 'Invalid date' : parsedDate.toLocaleDateString();
     };
 
     const openAddForm = () => {
         setEditingTransaction(null);
         setFormVisible(true);
+    };
+
+    const openImportModal = () => {
+        setImportModalVisible(true);
     };
 
     const openEditForm = (transaction) => {
@@ -209,6 +219,10 @@ const Report = () => {
     const closeForm = () => {
         setFormVisible(false);
         setEditingTransaction(null);
+    };
+
+    const closeImportModal = () => {
+        setImportModalVisible(false);
     };
 
     const handleAuthSuccess = (user) => {
@@ -232,6 +246,7 @@ const Report = () => {
             setIsReportLoading(false);
             setTransactionEditMode(false);
             closeForm();
+            closeImportModal();
         }
     };
 
@@ -257,6 +272,13 @@ const Report = () => {
         }
 
         closeForm();
+    };
+
+    const handleTransactionsImported = (importedTransactions) => {
+        if (!Array.isArray(importedTransactions) || importedTransactions.length === 0) return;
+
+        setTransactions((previousTransactions) => [...importedTransactions, ...previousTransactions]);
+        setReportData(null);
     };
 
     // Fetch the report data from the backend
@@ -572,7 +594,7 @@ const Report = () => {
 
             monthlyTransactions.forEach((transaction) => {
                 const rowData = {
-                    date: transaction.date ? new Date(transaction.date).toLocaleDateString('en-US') : 'No date',
+                    date: formatDate(transaction.date),
                     type: String(transaction.type || 'N/A').replace(/^./, (char) => char.toUpperCase()),
                     name: transaction.name || 'Unnamed transaction',
                     category: transaction.category || 'Uncategorized',
@@ -730,6 +752,10 @@ const Report = () => {
                         expenses={monthlySummary.expenses}
                         net={monthlySummary.net}
                         transactionCount={monthlySummary.transactionCount}
+                        year={year}
+                        month={month}
+                        onYearChange={setYear}
+                        onMonthChange={setMonth}
                     />
 
                     <TransactionsSection
@@ -745,6 +771,7 @@ const Report = () => {
                         startDate={startDate}
                         endDate={endDate}
                         onOpenAddForm={openAddForm}
+                        onOpenImportModal={openImportModal}
                         onToggleTransactionEditMode={toggleTransactionEditMode}
                         onOpenEditForm={openEditForm}
                         onCloseForm={closeForm}
@@ -758,6 +785,12 @@ const Report = () => {
                         onClearFilters={clearTransactionFilters}
                         formatDate={formatDate}
                     />
+                    {isImportModalVisible && (
+                        <ImportStatementModal
+                            onClose={closeImportModal}
+                            onImported={handleTransactionsImported}
+                        />
+                    )}
 
                     <MonthlyReportSection
                         year={year}

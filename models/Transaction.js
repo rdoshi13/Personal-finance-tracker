@@ -35,9 +35,28 @@ const TransactionSchema = new mongoose.Schema({
     },
     description: {
         type: String,
-    }
+    },
+    importHash: {
+        type: String,
+        trim: true,
+    },
+    importBatchId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ImportBatch',
+    },
+    sourceAccount: {
+        type: String,
+        trim: true,
+    },
 });
 
 TransactionSchema.index({ userId: 1, date: -1 });
+TransactionSchema.index(
+    { userId: 1, importHash: 1 },
+    {
+        unique: true,
+        partialFilterExpression: { importHash: { $type: 'string' } },
+    }
+);
 
 module.exports = mongoose.model('Transaction', TransactionSchema);

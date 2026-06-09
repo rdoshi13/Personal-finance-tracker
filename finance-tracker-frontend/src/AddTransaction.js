@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { createTransaction, updateTransaction } from './api/transactions';
 
 const CATEGORY_OPTIONS = {
-    income: ['Salary', 'Freelance', 'Investment', 'Interest', 'Bonus', 'Gift', 'Misc'],
-    expense: ['Groceries', 'Housing', 'Transport', 'Health', 'Food', 'Entertainment', 'Misc'],
-    subscription: ['Streaming', 'Software', 'Utilities', 'Cloud', 'Gym', 'Membership', 'Misc'],
+    income: ['Salary', 'Freelance', 'Investment', 'Interest', 'Bonus', 'Gift', 'Transfer', 'Tax Refund', 'Misc'],
+    expense: ['Groceries', 'Housing', 'Transport', 'Health', 'Food', 'Entertainment', 'Transfer', 'Credit Card Payment', 'Misc'],
+    subscription: ['Subscription', 'Streaming', 'Software', 'Utilities', 'Cloud', 'Gym', 'Membership', 'Misc'],
 };
 
 const getCategoryOptions = (type) => CATEGORY_OPTIONS[type] || ['Misc'];
