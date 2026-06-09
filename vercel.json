@@ -6,6 +6,13 @@
       "use": "@vercel/node"
     }
   ],
+  "functions": {
+    "api/index.js": {
+      "includeFiles": [
+        "node_modules/pdf-parse/dist/pdf-parse/cjs/pdf.worker.mjs"
+      ]
+    }
+  },
   "routes": [
     {
       "src": "^/api(?:/(.*))?$",
