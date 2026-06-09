@@ -5,6 +5,7 @@ const router = express.Router();
 const Transaction = require('../models/Transaction');
 const ImportBatch = require('../models/ImportBatch');
 const {
+    MAX_IMPORT_ROWS,
     buildFileHash,
     normalizeImportFileBuffer,
     normalizeSubmissionRow,
@@ -164,6 +165,11 @@ router.post('/import', async (req, res) => {
     try {
         const userId = req.user.id;
         const submittedRows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+
+        if (submittedRows.length > MAX_IMPORT_ROWS) {
+            return res.status(400).json({ message: `Import is limited to ${MAX_IMPORT_ROWS} rows` });
+        }
+
         const sourceAccount = req.body?.sourceAccount || req.body?.batch?.sourceAccount || '';
         const normalizedRows = submittedRows.map((row) => normalizeSubmissionRow(row, { sourceAccount }));
         const reviewedRows = await markDuplicateRows(normalizedRows, userId);

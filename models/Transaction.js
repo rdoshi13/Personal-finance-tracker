@@ -55,7 +55,7 @@ TransactionSchema.index(
     { userId: 1, importHash: 1 },
     {
         unique: true,
-        partialFilterExpression: { importHash: { $type: 'string' } },
+        partialFilterExpression: { importHash: { $exists: true, $type: 'string', $ne: '' } },
     }
 );
 
