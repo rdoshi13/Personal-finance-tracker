@@ -1,7 +1,49 @@
 // routes/transactionRoutes.js
 const express = require('express');
+const multer = require('multer');
 const router = express.Router();
 const Transaction = require('../models/Transaction');
+const ImportBatch = require('../models/ImportBatch');
+const {
+    MAX_IMPORT_ROWS,
+    buildFileHash,
+    normalizeImportFileBuffer,
+    normalizeSubmissionRow,
+} = require('../lib/transactionImport');
+
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 2 * 1024 * 1024 },
+    fileFilter: (req, file, callback) => {
+        const originalName = String(file.originalname || '').toLowerCase();
+        const mimeType = String(file.mimetype || '').toLowerCase();
+        const isCsv = originalName.endsWith('.csv') || mimeType === 'text/csv' || mimeType === 'application/vnd.ms-excel';
+        const isPdf = originalName.endsWith('.pdf') || mimeType === 'application/pdf';
+
+        if (!isCsv && !isPdf) {
+            callback(new Error('Only CSV and PDF files are supported'));
+            return;
+        }
+
+        callback(null, true);
+    },
+});
+
+const handleImportUpload = (req, res, next) => {
+    upload.single('file')(req, res, (error) => {
+        if (!error) {
+            next();
+            return;
+        }
+
+        if (error.code === 'LIMIT_FILE_SIZE') {
+            res.status(400).json({ message: 'Statement file must be 2 MB or smaller' });
+            return;
+        }
+
+        res.status(400).json({ message: error.message || 'Invalid CSV upload' });
+    });
+};
 
 const normalizeUpdatePayload = (payload) => {
     const normalizedPayload = { ...payload };
@@ -67,6 +109,144 @@ const deleteTransactionById = async (req, res) => {
     }
 };
 
+const markDuplicateRows = async (rows, userId) => {
+    const seenHashes = new Set();
+    const hashes = rows.map((row) => row.importHash).filter(Boolean);
+    const existingTransactions = hashes.length > 0
+        ? await Transaction.find({ userId, importHash: { $in: hashes } }).select('importHash')
+        : [];
+    const existingHashes = new Set(existingTransactions.map((transaction) => transaction.importHash));
+
+    return rows.map((row) => {
+        if (!row.importHash || row.status === 'invalid') {
+            return row;
+        }
+
+        if (existingHashes.has(row.importHash) || seenHashes.has(row.importHash)) {
+            return {
+                ...row,
+                status: 'duplicate',
+                errors: [],
+            };
+        }
+
+        seenHashes.add(row.importHash);
+        return row;
+    });
+};
+
+router.post('/import/preview', handleImportUpload, async (req, res) => {
+    try {
+        if (!req.file?.buffer) {
+            return res.status(400).json({ message: 'CSV file is required' });
+        }
+
+        const sourceAccount = req.body?.sourceAccount || '';
+        const normalizedRows = await normalizeImportFileBuffer(req.file.buffer, req.file, { sourceAccount });
+        const rows = await markDuplicateRows(normalizedRows, req.user.id);
+
+        res.json({
+            filename: req.file.originalname,
+            fileHash: buildFileHash(req.file.buffer),
+            totalRows: rows.length,
+            rows,
+            summary: {
+                ready: rows.filter((row) => row.status === 'ready').length,
+                duplicate: rows.filter((row) => row.status === 'duplicate').length,
+                invalid: rows.filter((row) => row.status === 'invalid').length,
+            },
+        });
+    } catch (error) {
+        res.status(error.statusCode || 400).json({ message: error.message || 'Failed to parse CSV' });
+    }
+});
+
+router.post('/import', async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const submittedRows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+
+        if (submittedRows.length > MAX_IMPORT_ROWS) {
+            return res.status(400).json({ message: `Import is limited to ${MAX_IMPORT_ROWS} rows` });
+        }
+
+        const sourceAccount = req.body?.sourceAccount || req.body?.batch?.sourceAccount || '';
+        const normalizedRows = submittedRows.map((row) => normalizeSubmissionRow(row, { sourceAccount }));
+        const reviewedRows = await markDuplicateRows(normalizedRows, userId);
+        const importBatch = await ImportBatch.create({
+            userId,
+            filename: String(req.body?.batch?.filename || '').trim(),
+            fileHash: String(req.body?.batch?.fileHash || '').trim(),
+            totalRows: reviewedRows.length,
+            imported: 0,
+            skipped: reviewedRows.filter((row) => row.status === 'duplicate').length,
+            failed: reviewedRows.filter((row) => row.status === 'invalid').length,
+        });
+
+        const importedTransactions = [];
+        const errors = [];
+        let skipped = 0;
+        let failed = 0;
+
+        for (const row of reviewedRows) {
+            if (row.status === 'invalid') {
+                failed += 1;
+                errors.push({ rowNumber: row.rowNumber, errors: row.errors });
+                continue;
+            }
+
+            if (row.status === 'duplicate') {
+                skipped += 1;
+                continue;
+            }
+
+            try {
+                const transaction = await Transaction.create({
+                    userId,
+                    name: row.name,
+                    type: row.type,
+                    category: row.category,
+                    amount: row.amount,
+                    date: row.date,
+                    description: row.description,
+                    importHash: row.importHash,
+                    importBatchId: importBatch._id,
+                    sourceAccount: row.sourceAccount,
+                });
+                importedTransactions.push(transaction);
+            } catch (error) {
+                if (error?.code === 11000) {
+                    skipped += 1;
+                    continue;
+                }
+
+                failed += 1;
+                errors.push({
+                    rowNumber: row.rowNumber,
+                    errors: [error.message || 'Failed to import row'],
+                });
+            }
+        }
+
+        importBatch.imported = importedTransactions.length;
+        importBatch.skipped = skipped;
+        importBatch.failed = failed;
+        await importBatch.save();
+
+        res.status(201).json({
+            totalRows: reviewedRows.length,
+            imported: importedTransactions.length,
+            skipped,
+            failed,
+            transactions: importedTransactions,
+            errors,
+            importBatchId: importBatch._id,
+        });
+    } catch (error) {
+        res.status(400).json({ message: error.message || 'Failed to import transactions' });
+    }
+});
+
 // Create a new transaction
 router.post('/', async (req, res) => {
     try {
@@ -112,9 +292,9 @@ router.post('/:id/delete', deleteTransactionById);
 router.get('/report/:year/:month', async (req, res) => {
     const { year, month } = req.params;
     const userId = req.user.id;
-    const startDate = new Date(`${year}-${month}-01`);
+    const startDate = new Date(Date.UTC(Number(year), Number(month) - 1, 1));
     const endDate = new Date(startDate);
-    endDate.setMonth(endDate.getMonth() + 1); // Move to the next month
+    endDate.setUTCMonth(endDate.getUTCMonth() + 1); // Move to the next month
 
     try {
         const transactions = await Transaction.find({

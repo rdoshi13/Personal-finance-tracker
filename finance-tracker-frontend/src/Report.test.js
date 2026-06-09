@@ -1,6 +1,12 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import Report from './Report';
-import { deleteTransaction, getMonthlyReport, getTransactions } from './api/transactions';
+import {
+    deleteTransaction,
+    getMonthlyReport,
+    getTransactions,
+    importTransactions,
+    previewTransactionImport,
+} from './api/transactions';
 import { getCurrentUser, logout } from './api/auth';
 
 jest.mock('jspdf', () =>
@@ -29,6 +35,8 @@ jest.mock('./api/transactions', () => ({
     deleteTransaction: jest.fn(),
     getMonthlyReport: jest.fn(),
     getTransactions: jest.fn(),
+    importTransactions: jest.fn(),
+    previewTransactionImport: jest.fn(),
 }));
 
 jest.mock('./api/auth', () => ({
@@ -136,7 +144,7 @@ describe('Report', () => {
         render(<Report />);
 
         expect(await screen.findByText('Monthly salary')).toBeInTheDocument();
-        fireEvent.change(screen.getByLabelText('Month'), { target: { value: '03' } });
+        fireEvent.change(screen.getByLabelText('Month', { selector: '#report-month' }), { target: { value: '03' } });
         fireEvent.click(screen.getByRole('button', { name: 'Load Report' }));
 
         expect(await screen.findByText('Income by Category')).toBeInTheDocument();
@@ -234,6 +242,135 @@ describe('Report', () => {
             expect(screen.queryByText('Coffee beans')).not.toBeInTheDocument();
         });
         expect(screen.getByText('Movie tickets')).toBeInTheDocument();
+    });
+
+    test('opens import modal and renders preview rows', async () => {
+        getTransactions.mockResolvedValue([]);
+        previewTransactionImport.mockResolvedValue({
+            filename: 'statement.csv',
+            fileHash: 'file-hash',
+            totalRows: 1,
+            summary: { ready: 1, duplicate: 0, invalid: 0 },
+            rows: [
+                {
+                    rowNumber: 2,
+                    date: '2026-03-03',
+                    name: 'Coffee Shop',
+                    amount: 6.25,
+                    type: 'expense',
+                    category: 'Food',
+                    description: 'Coffee Shop',
+                    status: 'ready',
+                    errors: [],
+                    importHash: 'hash-1',
+                },
+            ],
+        });
+
+        render(<Report />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Import Statement' }));
+        const file = new File(['Date,Description,Amount\n2026-03-03,Coffee Shop,-6.25'], 'statement.csv', {
+            type: 'text/csv',
+        });
+        fireEvent.change(screen.getByLabelText('Statement file'), { target: { files: [file] } });
+
+        await waitFor(() => {
+            expect(screen.getAllByDisplayValue('Coffee Shop').length).toBeGreaterThan(0);
+        });
+        expect(screen.getByRole('button', { name: 'Import 1 transactions' })).toBeInTheDocument();
+        expect(previewTransactionImport).toHaveBeenCalledWith(file, '');
+    });
+
+    test('shows invalid import rows and excludes them from import count', async () => {
+        getTransactions.mockResolvedValue([]);
+        previewTransactionImport.mockResolvedValue({
+            filename: 'statement.csv',
+            fileHash: 'file-hash',
+            totalRows: 1,
+            summary: { ready: 0, duplicate: 0, invalid: 1 },
+            rows: [
+                {
+                    rowNumber: 2,
+                    date: '',
+                    name: '',
+                    amount: '',
+                    type: 'expense',
+                    category: 'Misc',
+                    description: '',
+                    status: 'invalid',
+                    errors: ['Invalid or missing date'],
+                    importHash: '',
+                },
+            ],
+        });
+
+        render(<Report />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Import Statement' }));
+        const file = new File(['Date,Description,Amount\nbad,,'], 'statement.csv', { type: 'text/csv' });
+        fireEvent.change(screen.getByLabelText('Statement file'), { target: { files: [file] } });
+
+        expect(await screen.findByText('Invalid or missing date')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Import 0 transactions' })).toBeDisabled();
+    });
+
+    test('adds imported transactions to the list', async () => {
+        getTransactions.mockResolvedValue([]);
+        previewTransactionImport.mockResolvedValue({
+            filename: 'statement.csv',
+            fileHash: 'file-hash',
+            totalRows: 1,
+            summary: { ready: 1, duplicate: 0, invalid: 0 },
+            rows: [
+                {
+                    rowNumber: 2,
+                    date: '2026-03-03',
+                    name: 'Imported Coffee',
+                    amount: 6.25,
+                    type: 'expense',
+                    category: 'Food',
+                    description: 'Imported Coffee',
+                    status: 'ready',
+                    errors: [],
+                    importHash: 'hash-1',
+                },
+            ],
+        });
+        importTransactions.mockResolvedValue({
+            totalRows: 1,
+            imported: 1,
+            skipped: 0,
+            failed: 0,
+            transactions: [
+                {
+                    _id: 'imported-1',
+                    date: '2026-03-03T00:00:00.000Z',
+                    name: 'Imported Coffee',
+                    amount: 6.25,
+                    type: 'expense',
+                    category: 'Food',
+                    description: 'Imported Coffee',
+                },
+            ],
+            errors: [],
+        });
+
+        render(<Report />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Import Statement' }));
+        const file = new File(['Date,Description,Amount\n2026-03-03,Imported Coffee,-6.25'], 'statement.csv', {
+            type: 'text/csv',
+        });
+        fireEvent.change(screen.getByLabelText('Statement file'), { target: { files: [file] } });
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Import 1 transactions' }));
+
+        await waitFor(() => {
+            expect(importTransactions).toHaveBeenCalledTimes(1);
+        });
+        expect(await screen.findByText('Imported 1, skipped 0, failed 0.')).toBeInTheDocument();
+        expect(screen.getAllByText('Imported Coffee').length).toBeGreaterThan(0);
     });
 
     test('toggles and persists theme mode', async () => {

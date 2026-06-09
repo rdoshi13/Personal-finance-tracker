@@ -55,6 +55,34 @@ const createTransaction = async (transaction) =>
         'Failed to create transaction'
     );
 
+const previewTransactionImport = async (file, sourceAccount = '') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (sourceAccount) {
+        formData.append('sourceAccount', sourceAccount);
+    }
+
+    return requestJson(
+        '/api/transactions/import/preview',
+        {
+            method: 'POST',
+            body: formData,
+        },
+        'Failed to preview statement import'
+    );
+};
+
+const importTransactions = async (rows, batch = {}) =>
+    requestJson(
+        '/api/transactions/import',
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rows, batch, sourceAccount: batch.sourceAccount || '' }),
+        },
+        'Failed to import transactions'
+    );
+
 const updateTransaction = async (transactionId, transaction) =>
     requestJson(
         `/api/transactions/${normalizeTransactionId(transactionId)}`,
@@ -111,5 +139,7 @@ export {
     deleteTransaction,
     getMonthlyReport,
     getTransactions,
+    importTransactions,
+    previewTransactionImport,
     updateTransaction,
 };

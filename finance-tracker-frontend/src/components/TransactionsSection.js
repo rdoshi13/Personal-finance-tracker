@@ -5,6 +5,33 @@ const getAmountClassName = (type) => (type === 'income' ? 'amount-income' : 'amo
 const getTransactionName = (transaction) => transaction.name || 'Unnamed transaction';
 const getTransactionCategory = (transaction) => transaction.category || 'Uncategorized';
 const getTransactionId = (transaction) => transaction?._id || transaction?.id || '';
+const getTransactionMonthKey = (transaction) => {
+    const dateKey = String(transaction?.date || '').match(/^(\d{4}-\d{2})/)?.[1];
+    if (dateKey) return dateKey;
+
+    const parsedDate = new Date(transaction?.date);
+    if (Number.isNaN(parsedDate.getTime())) return 'Unknown date';
+
+    return `${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, '0')}`;
+};
+const formatMonthHeading = (monthKey) => {
+    const match = String(monthKey || '').match(/^(\d{4})-(\d{2})$/);
+    if (!match) return 'Unknown date';
+
+    const [, year, month] = match;
+    return new Date(Number(year), Number(month) - 1, 1).toLocaleString('en-US', {
+        month: 'long',
+        year: 'numeric',
+    });
+};
+
+const groupTransactionsByMonth = (transactions) =>
+    transactions.reduce((groups, transaction) => {
+        const monthKey = getTransactionMonthKey(transaction);
+        if (!groups[monthKey]) groups[monthKey] = [];
+        groups[monthKey].push(transaction);
+        return groups;
+    }, {});
 
 const PencilIcon = () => (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -31,6 +58,7 @@ const TransactionsSection = ({
     startDate,
     endDate,
     onOpenAddForm,
+    onOpenImportModal,
     onToggleTransactionEditMode,
     onOpenEditForm,
     onCloseForm,
@@ -43,12 +71,21 @@ const TransactionsSection = ({
     onEndDateChange,
     onClearFilters,
     formatDate,
-}) => (
-    <section className="transactions-section">
+}) => {
+    const groupedTransactions = groupTransactionsByMonth(transactions);
+    const monthGroups = Object.entries(groupedTransactions).sort(([leftMonth], [rightMonth]) =>
+        rightMonth.localeCompare(leftMonth)
+    );
+
+    return (
+        <section className="transactions-section">
         <h2>Recent Transactions</h2>
 
         <div className="action-buttons">
             <button onClick={onOpenAddForm}>Add Transaction</button>
+            <button className="secondary-button" onClick={onOpenImportModal}>
+                Import Statement
+            </button>
             <button className="secondary-button" onClick={onToggleTransactionEditMode}>
                 {isTransactionEditMode ? 'Done' : 'Edit'}
             </button>
@@ -132,58 +169,69 @@ const TransactionsSection = ({
         {transactions.length === 0 ? (
             <p>{totalTransactionsCount === 0 ? 'No transactions added yet.' : 'No transactions match these filters.'}</p>
         ) : (
-            <ul>
-                {transactions.map((transaction, index) => (
-                    <li key={getTransactionId(transaction) || `${getTransactionName(transaction)}-${index}`} className="transaction-item">
-                        <div className="transaction-grid">
-                            <div className="transaction-cell">
-                                <span className="transaction-label">Name</span>
-                                <strong>{getTransactionName(transaction)}</strong>
-                            </div>
-                            <div className="transaction-cell">
-                                <span className="transaction-label">Category</span>
-                                <span className="transaction-meta">{getTransactionCategory(transaction)}</span>
-                            </div>
-                            <div className="transaction-cell">
-                                <span className="transaction-label">Value</span>
-                                <strong className={getAmountClassName(transaction.type)}>
-                                    ${transaction.amount}
-                                </strong>
-                            </div>
-                            <div className="transaction-cell">
-                                <span className="transaction-label">Description</span>
-                                <span>{transaction.description || 'No description'}</span>
-                            </div>
-                            <div className="transaction-cell">
-                                <span className="transaction-label">Date</span>
-                                <span>{formatDate(transaction.date)}</span>
-                            </div>
+            <div className="transactions-scroll">
+                {monthGroups.map(([monthKey, monthTransactions]) => (
+                    <section key={monthKey} className="transaction-month-group">
+                        <div className="transaction-month-header">
+                            <h3>{formatMonthHeading(monthKey)}</h3>
+                            <span>{monthTransactions.length} {monthTransactions.length === 1 ? 'transaction' : 'transactions'}</span>
                         </div>
-                        {isTransactionEditMode && (
-                            <div className="transaction-row-actions">
-                                <button
-                                    className="icon-button icon-edit"
-                                    onClick={() => onOpenEditForm(transaction)}
-                                    aria-label={`Edit ${getTransactionName(transaction)}`}
-                                    title="Edit transaction"
-                                >
-                                    <PencilIcon />
-                                </button>
-                                <button
-                                    className="icon-button icon-delete"
-                                    onClick={() => onDelete(transaction)}
-                                    aria-label={`Delete ${getTransactionName(transaction)}`}
-                                    title="Delete transaction"
-                                >
-                                    <TrashIcon />
-                                </button>
-                            </div>
-                        )}
-                    </li>
+                        <ul>
+                            {monthTransactions.map((transaction, index) => (
+                                <li key={getTransactionId(transaction) || `${getTransactionName(transaction)}-${index}`} className="transaction-item">
+                                    <div className="transaction-grid">
+                                        <div className="transaction-cell">
+                                            <span className="transaction-label">Name</span>
+                                            <strong>{getTransactionName(transaction)}</strong>
+                                        </div>
+                                        <div className="transaction-cell">
+                                            <span className="transaction-label">Category</span>
+                                            <span className="transaction-meta">{getTransactionCategory(transaction)}</span>
+                                        </div>
+                                        <div className="transaction-cell">
+                                            <span className="transaction-label">Value</span>
+                                            <strong className={getAmountClassName(transaction.type)}>
+                                                ${transaction.amount}
+                                            </strong>
+                                        </div>
+                                        <div className="transaction-cell">
+                                            <span className="transaction-label">Description</span>
+                                            <span>{transaction.description || 'No description'}</span>
+                                        </div>
+                                        <div className="transaction-cell">
+                                            <span className="transaction-label">Date</span>
+                                            <span>{formatDate(transaction.date)}</span>
+                                        </div>
+                                    </div>
+                                    {isTransactionEditMode && (
+                                        <div className="transaction-row-actions">
+                                            <button
+                                                className="icon-button icon-edit"
+                                                onClick={() => onOpenEditForm(transaction)}
+                                                aria-label={`Edit ${getTransactionName(transaction)}`}
+                                                title="Edit transaction"
+                                            >
+                                                <PencilIcon />
+                                            </button>
+                                            <button
+                                                className="icon-button icon-delete"
+                                                onClick={() => onDelete(transaction)}
+                                                aria-label={`Delete ${getTransactionName(transaction)}`}
+                                                title="Delete transaction"
+                                            >
+                                                <TrashIcon />
+                                            </button>
+                                        </div>
+                                    )}
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
                 ))}
-            </ul>
+            </div>
         )}
     </section>
-);
+    );
+};
 
 export default TransactionsSection;
