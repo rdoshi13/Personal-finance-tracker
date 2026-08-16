@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { login, signup } from '../api/auth';
+import { forgotPassword, login, signup } from '../api/auth';
 
 const AuthSection = ({ onAuthSuccess }) => {
     const [mode, setMode] = useState('login');
@@ -9,8 +9,10 @@ const AuthSection = ({ onAuthSuccess }) => {
     const [showPassword, setShowPassword] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formError, setFormError] = useState('');
+    const [statusMessage, setStatusMessage] = useState('');
 
     const isSignupMode = mode === 'signup';
+    const isForgotMode = mode === 'forgot';
 
     const resetForm = () => {
         setName('');
@@ -18,34 +20,47 @@ const AuthSection = ({ onAuthSuccess }) => {
         setPassword('');
     };
 
-    const toggleMode = () => {
+    const changeMode = (nextMode) => {
         setFormError('');
-        setMode((previousMode) => (previousMode === 'login' ? 'signup' : 'login'));
+        setStatusMessage('');
+        setMode(nextMode);
         setShowPassword(false);
         resetForm();
+    };
+
+    const toggleMode = () => {
+        changeMode(isSignupMode ? 'login' : 'signup');
     };
 
     const handleSubmit = async (event) => {
         event.preventDefault();
         setFormError('');
+        setStatusMessage('');
         setIsSubmitting(true);
 
         try {
-            if (isSignupMode) {
+            if (isForgotMode) {
+                const response = await forgotPassword({ email: email.trim() });
+                setStatusMessage(
+                    response?.message || 'If an account exists for that email, a reset link is on its way.'
+                );
+                resetForm();
+            } else if (isSignupMode) {
                 const response = await signup({
                     name: name.trim(),
                     email: email.trim(),
                     password,
                 });
                 onAuthSuccess(response.user);
+                resetForm();
             } else {
                 const response = await login({
                     email: email.trim(),
                     password,
                 });
                 onAuthSuccess(response.user);
+                resetForm();
             }
-            resetForm();
         } catch (error) {
             setFormError(error.message || 'Authentication failed');
         } finally {
@@ -53,15 +68,41 @@ const AuthSection = ({ onAuthSuccess }) => {
         }
     };
 
+    const getHeading = () => {
+        if (isForgotMode) {
+            return 'Reset password';
+        }
+        return isSignupMode ? 'Create account' : 'Sign in';
+    };
+
+    const getSubtitle = () => {
+        if (isForgotMode) {
+            return 'Enter your email and we will send you a link to choose a new password.';
+        }
+        return isSignupMode
+            ? 'Create your account to keep transactions private.'
+            : 'Sign in to access your personal transactions.';
+    };
+
+    const getSubmitLabel = () => {
+        if (isSubmitting) {
+            if (isForgotMode) {
+                return 'Sending link...';
+            }
+            return isSignupMode ? 'Creating account...' : 'Signing in...';
+        }
+
+        if (isForgotMode) {
+            return 'Send Reset Link';
+        }
+        return isSignupMode ? 'Create Account' : 'Sign In';
+    };
+
     return (
         <section className="auth-section">
             <div className="auth-card">
-                <h2>{isSignupMode ? 'Create account' : 'Sign in'}</h2>
-                <p className="auth-subtitle">
-                    {isSignupMode
-                        ? 'Create your account to keep transactions private.'
-                        : 'Sign in to access your personal transactions.'}
-                </p>
+                <h2>{getHeading()}</h2>
+                <p className="auth-subtitle">{getSubtitle()}</p>
 
                 <form className="auth-form" onSubmit={handleSubmit}>
                     {isSignupMode && (
@@ -90,46 +131,69 @@ const AuthSection = ({ onAuthSuccess }) => {
                         />
                     </div>
 
-                    <div className="auth-field">
-                        <label htmlFor="auth-password">Password</label>
-                        <div className="password-field-wrapper">
-                            <input
-                                id="auth-password"
-                                type={showPassword ? 'text' : 'password'}
-                                value={password}
-                                onChange={(event) => setPassword(event.target.value)}
-                                placeholder={isSignupMode ? 'Minimum 8 characters' : 'Enter password'}
-                                minLength={8}
-                                required
-                            />
-                            <button
-                                type="button"
-                                className="password-visibility-toggle"
-                                onClick={() => setShowPassword((previousState) => !previousState)}
-                                aria-label={showPassword ? 'Hide password' : 'Show password'}
-                            >
-                                {showPassword ? 'Hide' : 'Show'}
-                            </button>
+                    {!isForgotMode && (
+                        <div className="auth-field">
+                            <label htmlFor="auth-password">Password</label>
+                            <div className="password-field-wrapper">
+                                <input
+                                    id="auth-password"
+                                    type={showPassword ? 'text' : 'password'}
+                                    value={password}
+                                    onChange={(event) => setPassword(event.target.value)}
+                                    placeholder={isSignupMode ? 'Minimum 8 characters' : 'Enter password'}
+                                    minLength={8}
+                                    required
+                                />
+                                <button
+                                    type="button"
+                                    className="password-visibility-toggle"
+                                    onClick={() => setShowPassword((previousState) => !previousState)}
+                                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                >
+                                    {showPassword ? 'Hide' : 'Show'}
+                                </button>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     <button type="submit" disabled={isSubmitting}>
-                        {isSubmitting
-                            ? isSignupMode ? 'Creating account...' : 'Signing in...'
-                            : isSignupMode ? 'Create Account' : 'Sign In'}
+                        {getSubmitLabel()}
                     </button>
                 </form>
 
                 {formError && <p className="error-text">{formError}</p>}
+                {statusMessage && <p className="success-text">{statusMessage}</p>}
 
-                <button
-                    type="button"
-                    className="link-button"
-                    onClick={toggleMode}
-                    disabled={isSubmitting}
-                >
-                    {isSignupMode ? 'Already have an account? Sign in' : 'New here? Create an account'}
-                </button>
+                {mode === 'login' && (
+                    <button
+                        type="button"
+                        className="link-button"
+                        onClick={() => changeMode('forgot')}
+                        disabled={isSubmitting}
+                    >
+                        Forgot your password?
+                    </button>
+                )}
+
+                {isForgotMode ? (
+                    <button
+                        type="button"
+                        className="link-button"
+                        onClick={() => changeMode('login')}
+                        disabled={isSubmitting}
+                    >
+                        Back to sign in
+                    </button>
+                ) : (
+                    <button
+                        type="button"
+                        className="link-button"
+                        onClick={toggleMode}
+                        disabled={isSubmitting}
+                    >
+                        {isSignupMode ? 'Already have an account? Sign in' : 'New here? Create an account'}
+                    </button>
+                )}
             </div>
         </section>
     );

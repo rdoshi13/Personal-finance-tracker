@@ -6,7 +6,8 @@
   "scripts": {
     "test": "node --test test/*.test.js",
     "backfill:names": "node scripts/backfillMissingTransactionNames.js",
-    "clean:statement-names": "node scripts/cleanStatementTransactionNames.js"
+    "clean:statement-names": "node scripts/cleanStatementTransactionNames.js",
+    "reset:password": "node scripts/resetPassword.js"
   },
   "keywords": [],
   "author": "",
@@ -24,6 +25,7 @@
     "mongodb": "^6.9.0",
     "mongoose": "^9.3.0",
     "multer": "^2.1.1",
+    "nodemailer": "^9.0.5",
     "pdf-parse": "^2.4.5"
   }
 }

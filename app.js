@@ -40,6 +40,10 @@ if (process.env.NODE_ENV === 'production' && allowedOrigins.size === 0) {
 
 const app = express();
 
+// Vercel terminates TLS upstream, so req.ip is the proxy address unless we trust it.
+// The rate limiter keys on req.ip and would otherwise bucket every user together.
+app.set('trust proxy', 1);
+
 const corsOptions = {
     origin: (origin, callback) => {
         if (!origin) {

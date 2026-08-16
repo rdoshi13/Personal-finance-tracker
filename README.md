@@ -161,7 +161,11 @@ Add screenshots in this section before sharing with recruiters.
    JWT_SECRET=replace-with-a-long-random-secret
    ALLOWED_ORIGINS=http://localhost:3000
    ALLOW_VERCEL_PREVIEWS=false
+   APP_BASE_URL=http://localhost:3000
    ```
+
+   SMTP is optional locally. With no `SMTP_*` variables set, password reset links
+   are printed to the backend console instead of being emailed.
 5. Create frontend `.env` in `finance-tracker-frontend`:
    ```env
    REACT_APP_API_BASE_URL=http://localhost:5001
@@ -218,7 +222,20 @@ MONGO_URI=mongodb+srv://<user>:<password>@<cluster-url>/finance-tracker?retryWri
 JWT_SECRET=<long-random-secret>
 ALLOWED_ORIGINS=https://budget.rishabhdoshi.me
 ALLOW_VERCEL_PREVIEWS=true
+
+# Password reset — all required in production
+APP_BASE_URL=https://budget.rishabhdoshi.me
+SMTP_HOST=smtp.resend.com
+SMTP_PORT=587
+SMTP_USER=<smtp-username>
+SMTP_PASS=<smtp-password>
+MAIL_FROM="Finance Tracker <no-reply@rishabhdoshi.me>"
+RESET_TOKEN_TTL_MINUTES=60
 ```
+
+`APP_BASE_URL` is the **frontend** origin — reset links point there, not at the API.
+In production the app refuses to send a reset email unless SMTP is configured, so a
+misconfiguration fails loudly instead of silently dropping mail.
 
 ### Frontend Environment Variables
 
@@ -239,6 +256,14 @@ REACT_APP_API_BASE_URL=https://<your-backend-project>.vercel.app
 ## Security Notes
 
 - Passwords are hashed (not stored in plaintext).
+- Password reset tokens are random 32-byte values, stored only as SHA-256 hashes,
+  single-use, and expired after `RESET_TOKEN_TTL_MINUTES` (default 60).
+- `POST /api/auth/forgot-password` returns the same response for known and unknown
+  emails, so it cannot be used to discover which accounts exist.
+- Reset requests are rate limited per IP + email; reset attempts are limited per IP.
+- **Known gap:** sessions are stateless JWTs, so an already-issued token stays valid
+  for its remaining lifetime after a password reset. Revoking existing sessions on
+  reset would need a token version on the user record checked per request.
 - JWT secret is stored server-side only (never in frontend code).
 - CORS is allowlist-based via `ALLOWED_ORIGINS`.
 - HTTP-only cookie session support is enabled for safer token handling.

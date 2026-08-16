@@ -1,10 +1,17 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const PasswordResetToken = require('../models/PasswordResetToken');
 const { TOKEN_COOKIE_NAME, getAuthCookieOptions, signAuthToken } = require('../lib/auth');
 const { requireAuth } = require('../middleware/auth');
+const { buildResetUrl, createResetToken, hashResetToken } = require('../lib/passwordReset');
+const { sendPasswordResetEmail } = require('../lib/mailer');
+const { createRateLimiter } = require('../lib/rateLimit');
 
 const router = express.Router();
+
+const forgotPasswordLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 5 });
+const resetPasswordLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10 });
 
 const sanitizeUser = (user) => ({
     id: String(user._id),
@@ -86,6 +93,100 @@ router.post('/login', async (req, res) => {
         return createSessionResponse(res, user);
     } catch (error) {
         return res.status(500).json({ message: 'Failed to sign in' });
+    }
+});
+
+// Always answers 200 with the same body: a different response for known and unknown
+// emails would turn this endpoint into an account-existence oracle.
+router.post('/forgot-password', async (req, res) => {
+    const genericResponse = {
+        message: 'If an account exists for that email, a reset link is on its way.',
+    };
+
+    try {
+        const email = String(req.body?.email || '').trim().toLowerCase();
+
+        if (!email || !isValidEmail(email)) {
+            return res.status(400).json({ message: 'A valid email is required' });
+        }
+
+        const limit = forgotPasswordLimiter.hit(`${req.ip}:${email}`);
+        if (!limit.allowed) {
+            return res.status(429).json({
+                message: 'Too many reset requests. Please try again later.',
+            });
+        }
+
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(200).json(genericResponse);
+        }
+
+        // Any earlier link becomes useless the moment a new one is issued.
+        await PasswordResetToken.deleteMany({ userId: user._id });
+
+        const { token, tokenHash, expiresAt } = createResetToken();
+        await PasswordResetToken.create({ userId: user._id, tokenHash, expiresAt });
+
+        await sendPasswordResetEmail({
+            to: user.email,
+            name: user.name,
+            resetUrl: buildResetUrl(token),
+        });
+
+        return res.status(200).json(genericResponse);
+    } catch (error) {
+        console.error('Password reset request failed:', error);
+        return res.status(500).json({ message: 'Failed to process password reset request' });
+    }
+});
+
+router.post('/reset-password', async (req, res) => {
+    try {
+        const token = String(req.body?.token || '').trim();
+        const password = String(req.body?.password || '');
+
+        if (!token) {
+            return res.status(400).json({ message: 'Reset token is required' });
+        }
+
+        const limit = resetPasswordLimiter.hit(String(req.ip));
+        if (!limit.allowed) {
+            return res.status(429).json({
+                message: 'Too many attempts. Please try again later.',
+            });
+        }
+
+        if (password.length < 8) {
+            return res.status(400).json({ message: 'Password must be at least 8 characters long' });
+        }
+
+        const resetToken = await PasswordResetToken.findOne({
+            tokenHash: hashResetToken(token),
+            usedAt: null,
+            expiresAt: { $gt: new Date() },
+        });
+
+        if (!resetToken) {
+            return res.status(400).json({ message: 'This reset link is invalid or has expired' });
+        }
+
+        const user = await User.findById(resetToken.userId);
+        if (!user) {
+            return res.status(400).json({ message: 'This reset link is invalid or has expired' });
+        }
+
+        user.passwordHash = await bcrypt.hash(password, 12);
+        await user.save();
+
+        // Burn this token and every sibling so the link cannot be replayed.
+        await PasswordResetToken.deleteMany({ userId: user._id });
+
+        return createSessionResponse(res, user);
+    } catch (error) {
+        console.error('Password reset failed:', error);
+        return res.status(500).json({ message: 'Failed to reset password' });
     }
 });
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import AuthSection from './components/AuthSection';
+import ResetPasswordSection from './components/ResetPasswordSection';
 import TransactionsSection from './components/TransactionsSection';
 import MonthlyReportSection from './components/MonthlyReportSection';
 import MonthlySummaryCards from './components/MonthlySummaryCards';
@@ -12,6 +13,23 @@ const THEME_STORAGE_KEY = 'finance-tracker-theme';
 const currentDate = new Date();
 const defaultYear = String(currentDate.getFullYear());
 const defaultMonth = String(currentDate.getMonth() + 1).padStart(2, '0');
+
+const RESET_TOKEN_PARAM = 'reset_token';
+
+const readResetTokenFromUrl = () => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get(RESET_TOKEN_PARAM) || '';
+};
+
+// Strip the token from the address bar so it does not linger in history or get
+// shared accidentally when the user copies the URL.
+const clearResetTokenFromUrl = () => {
+    if (typeof window === 'undefined') return;
+
+    const url = new URL(window.location.href);
+    url.searchParams.delete(RESET_TOKEN_PARAM);
+    window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
+};
 
 const getTransactionDateKey = (dateValue) => {
     if (!dateValue) return '';
@@ -132,6 +150,7 @@ const Report = () => {
     const [authUser, setAuthUser] = useState(null);
     const [isAuthLoading, setIsAuthLoading] = useState(true);
     const [authError, setAuthError] = useState('');
+    const [resetToken, setResetToken] = useState(() => readResetTokenFromUrl());
     const reportEntries = Object.entries(reportData?.report || {});
     const categoryOptions = Array.from(
         new Set(
@@ -230,6 +249,17 @@ const Report = () => {
         setAuthError('');
         setReportData(null);
         setReportError('');
+    };
+
+    const handleResetSuccess = (user) => {
+        setResetToken('');
+        clearResetTokenFromUrl();
+        handleAuthSuccess(user);
+    };
+
+    const handleResetCancel = () => {
+        setResetToken('');
+        clearResetTokenFromUrl();
     };
 
     const handleLogout = async () => {
@@ -734,7 +764,13 @@ const Report = () => {
                 )}
             </header>
 
-            {isAuthLoading ? (
+            {resetToken ? (
+                <ResetPasswordSection
+                    token={resetToken}
+                    onResetSuccess={handleResetSuccess}
+                    onCancel={handleResetCancel}
+                />
+            ) : isAuthLoading ? (
                 <section className="auth-section">
                     <div className="auth-card">
                         <h2>Loading session...</h2>

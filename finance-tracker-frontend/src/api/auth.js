@@ -48,12 +48,36 @@ const logout = async () =>
         'Failed to sign out'
     );
 
+const forgotPassword = async ({ email }) =>
+    requestJson(
+        '/api/auth/forgot-password',
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+        },
+        'Failed to send reset link'
+    );
+
+const resetPassword = async ({ token, password }) =>
+    requestJson(
+        '/api/auth/reset-password',
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, password }),
+        },
+        'Failed to reset password'
+    );
+
 const getCurrentUser = async () =>
     requestJson('/api/auth/me', {}, 'Failed to fetch current user');
 
 export {
+    forgotPassword,
     getCurrentUser,
     login,
     logout,
+    resetPassword,
     signup,
 };
