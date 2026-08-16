@@ -169,7 +169,19 @@ Add screenshots in this section before sharing with recruiters.
 5. Create frontend `.env` in `finance-tracker-frontend`:
    ```env
    REACT_APP_API_BASE_URL=http://localhost:5001
+   REACT_APP_UI_V2=true
    ```
+
+   `REACT_APP_UI_V2` selects the Budget Quest UI. Leave it unset or set it to anything
+   other than `true` to serve the original `Report.js` view instead — both are compiled
+   until the rework is signed off.
+
+6. Seed XP and achievements from your existing transactions (once per account):
+   ```bash
+   npm run backfill:progress -- you@example.com
+   ```
+   Without an email it processes every account. It is idempotent; pass `--force` to
+   recompute, which preserves XP already earned from claimed quests.
 6. Start MongoDB locally (`mongod` running).
 7. Start backend:
    ```bash
@@ -241,7 +253,15 @@ misconfiguration fails loudly instead of silently dropping mail.
 
 ```env
 REACT_APP_API_BASE_URL=https://<your-backend-project>.vercel.app
+REACT_APP_UI_V2=true
 ```
+
+### Gamification
+
+XP, levels, quests and achievements live in MongoDB (`progresses`), and category caps
+in `budgets`. Quest completion is evaluated server-side in [`lib/quests.js`](lib/quests.js)
+and re-checked on every claim, so XP cannot be granted from the browser. Existing
+transactions are never modified by any of this.
 
 ### Deployment Flow
 

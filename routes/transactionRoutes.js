@@ -1,6 +1,7 @@
 // routes/transactionRoutes.js
 const express = require('express');
 const multer = require('multer');
+const mongoose = require('mongoose');
 const router = express.Router();
 const Transaction = require('../models/Transaction');
 const ImportBatch = require('../models/ImportBatch');
@@ -10,6 +11,7 @@ const {
     normalizeImportFileBuffer,
     normalizeSubmissionRow,
 } = require('../lib/transactionImport');
+const { OUTFLOW_TYPES } = require('../lib/quests');
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -275,6 +277,62 @@ router.get('/', async (req, res) => {
         res.json(transactions);
     } catch (err) {
         res.status(500).json({ message: err.message });
+    }
+});
+
+// Per-month aggregates for one year. Feeds the month strip (which months hold data)
+// and the net-by-month chart from a single request, instead of shipping every
+// transaction to the browser and summing there.
+router.get('/summary', async (req, res) => {
+    const year = Number(req.query.year) || new Date().getUTCFullYear();
+
+    if (!Number.isInteger(year) || year < 1970 || year > 3000) {
+        return res.status(400).json({ message: 'Invalid year' });
+    }
+
+    try {
+        const start = new Date(Date.UTC(year, 0, 1));
+        const end = new Date(Date.UTC(year + 1, 0, 1));
+
+        const rows = await Transaction.aggregate([
+            { $match: { userId: new mongoose.Types.ObjectId(req.user.id), date: { $gte: start, $lt: end } } },
+            {
+                $group: {
+                    _id: { month: { $month: { date: '$date', timezone: 'UTC' } } },
+                    income: {
+                        $sum: { $cond: [{ $eq: ['$type', 'income'] }, '$amount', 0] },
+                    },
+                    // 'subscription' is money leaving the account, same as 'expense'.
+                    expense: {
+                        $sum: { $cond: [{ $in: ['$type', OUTFLOW_TYPES] }, '$amount', 0] },
+                    },
+                    count: { $sum: 1 },
+                },
+            },
+            { $sort: { '_id.month': 1 } },
+        ]);
+
+        const byMonth = rows.reduce((acc, row) => {
+            acc[row._id.month] = row;
+            return acc;
+        }, {});
+
+        const months = Array.from({ length: 12 }, (_, i) => {
+            const row = byMonth[i + 1] || { income: 0, expense: 0, count: 0 };
+            return {
+                month: i + 1,
+                periodKey: `${year}-${String(i + 1).padStart(2, '0')}`,
+                income: row.income,
+                expense: row.expense,
+                net: row.income - row.expense,
+                count: row.count,
+            };
+        });
+
+        return res.status(200).json({ year, months });
+    } catch (error) {
+        console.error('Failed to build summary:', error);
+        return res.status(500).json({ message: 'Failed to build summary' });
     }
 });
 

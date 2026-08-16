@@ -5,6 +5,8 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const authRoutes = require('./routes/authRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
+const budgetRoutes = require('./routes/budgetRoutes');
+const progressRoutes = require('./routes/progressRoutes');
 const { connectToDatabase } = require('./lib/mongo');
 const { requireAuth } = require('./middleware/auth');
 
@@ -90,6 +92,8 @@ app.use(async (req, res, next) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/transactions', requireAuth, transactionRoutes);
+app.use('/api/budgets', requireAuth, budgetRoutes);
+app.use('/api/progress', requireAuth, progressRoutes);
 
 app.use((error, req, res, next) => {
     if (error && error.message === 'Not allowed by CORS') {

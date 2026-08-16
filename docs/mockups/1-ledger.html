@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup 1 — Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: light;
+  --surface-0: #f1f3f6;
+  --surface-1: #ffffff;
+  --surface-2: #f8fafc;
+  --border:    #e2e6ec;
+  --border-strong: #cbd3dd;
+  --text-1:    #10192b;
+  --text-2:    #4a5567;
+  --text-3:    #79839a;
+  --brand:     #1e40af;
+  --brand-ink: #ffffff;
+  --accent:    #b45309;
+  --pos:       #0f7a4d;
+  --neg:       #b3341f;
+  --pos-bg:    #e7f4ed;
+  --neg-bg:    #fceeeb;
+  --focus:     #2a78d6;
+  --shadow:    0 1px 2px rgba(16,25,43,.06), 0 4px 12px rgba(16,25,43,.05);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #4a3aa7;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0: #0d1117;
+    --surface-1: #161b23;
+    --surface-2: #1c222c;
+    --border:    #2a323e;
+    --border-strong: #3b4756;
+    --text-1:    #e8edf4;
+    --text-2:    #a6b1c2;
+    --text-3:    #76829a;
+    --brand:     #4d7fe8;
+    --brand-ink: #0d1117;
+    --accent:    #e0a944;
+    --pos:       #45c88a;
+    --neg:       #f08262;
+    --pos-bg:    #122b21;
+    --neg-bg:    #2e1a16;
+    --shadow:    0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #9085e9;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--surface-0);
+  color: var(--text-1);
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ---------- shell ---------- */
+.shell { display: grid; grid-template-columns: 232px 1fr; min-height: 100dvh; }
+.sidebar {
+  background: var(--surface-1);
+  border-right: 1px solid var(--border);
+  padding: 20px 14px;
+  display: flex; flex-direction: column; gap: 26px;
+  position: sticky; top: 0; height: 100dvh;
+}
+.brand { display: flex; align-items: center; gap: 10px; padding: 0 8px; }
+.brand-mark {
+  width: 30px; height: 30px; border-radius: 8px; background: var(--brand);
+  display: grid; place-items: center; color: var(--brand-ink); flex: none;
+}
+.brand-name { font-weight: 600; letter-spacing: -.01em; font-size: 14px; }
+.brand-sub { color: var(--text-3); font-size: 11px; }
+.nav { display: flex; flex-direction: column; gap: 2px; }
+.nav-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-3); font-weight: 600; padding: 0 8px 6px; }
+.nav a {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 7px; color: var(--text-2);
+  text-decoration: none; font-weight: 500; cursor: pointer;
+  transition: background 180ms ease, color 180ms ease;
+}
+.nav a:hover { background: var(--surface-2); color: var(--text-1); }
+.nav a[aria-current="page"] { background: var(--brand); color: var(--brand-ink); }
+.nav svg { flex: none; }
+.side-foot { margin-top: auto; border-top: 1px solid var(--border); padding-top: 14px; }
+.who { display: flex; align-items: center; gap: 9px; padding: 0 6px; }
+.avatar {
+  width: 28px; height: 28px; border-radius: 50%; flex: none;
+  background: var(--surface-2); border: 1px solid var(--border-strong);
+  display: grid; place-items: center; font-size: 11px; font-weight: 600; color: var(--text-2);
+}
+.who-mail { font-size: 11.5px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- main ---------- */
+main { padding: 22px 26px 48px; max-width: 1440px; }
+.topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+h1 { font-size: 21px; font-weight: 600; letter-spacing: -.02em; margin: 0 0 3px; }
+.sub { color: var(--text-2); margin: 0; font-size: 13px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn {
+  font: inherit; font-weight: 500; cursor: pointer;
+  border-radius: 7px; padding: 8px 13px;
+  border: 1px solid var(--border-strong); background: var(--surface-1); color: var(--text-1);
+  display: inline-flex; align-items: center; gap: 7px;
+  transition: background 180ms ease, border-color 180ms ease, transform 120ms ease;
+}
+.btn:hover { background: var(--surface-2); border-color: var(--text-3); }
+.btn:active { transform: translateY(1px); }
+.btn-primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+.btn-primary:hover { background: var(--brand); filter: brightness(1.08); border-color: var(--brand); }
+
+/* ---------- month bar ---------- */
+.monthbar {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 16px;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 6px;
+  overflow-x: auto;
+}
+.mstep {
+  font: inherit; font-weight: 500; cursor: pointer; white-space: nowrap;
+  border: 0; background: transparent; color: var(--text-2);
+  padding: 6px 12px; border-radius: 6px;
+  transition: background 180ms ease, color 180ms ease;
+}
+.mstep:hover { background: var(--surface-2); color: var(--text-1); }
+.mstep[aria-pressed="true"] { background: var(--brand); color: var(--brand-ink); }
+.mstep .dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--s1); margin-left: 6px; vertical-align: middle; }
+.mstep[aria-pressed="true"] .dot { background: currentColor; }
+.mstep.empty { color: var(--text-3); }
+
+/* ---------- kpis ---------- */
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px; }
+.kpi {
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 11px;
+  padding: 14px 16px; box-shadow: var(--shadow);
+}
+.kpi-k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); font-weight: 600; margin-bottom: 7px; display: flex; align-items: center; gap: 6px; }
+.kpi-v { font-size: 25px; font-weight: 600; letter-spacing: -.025em; line-height: 1.1; }
+.kpi-d { font-size: 12px; color: var(--text-2); margin-top: 5px; display: flex; align-items: center; gap: 5px; }
+.pos { color: var(--pos); } .neg { color: var(--neg); }
+.chip { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 5px; font-size: 11px; font-weight: 600; }
+.chip.up { background: var(--pos-bg); color: var(--pos); }
+.chip.down { background: var(--neg-bg); color: var(--neg); }
+
+/* ---------- panels ---------- */
+.grid2 { display: grid; grid-template-columns: 1.55fr 1fr; gap: 12px; margin-bottom: 14px; }
+.panel { background: var(--surface-1); border: 1px solid var(--border); border-radius: 11px; box-shadow: var(--shadow); }
+.panel-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 16px; border-bottom: 1px solid var(--border); }
+.panel-t { font-size: 13px; font-weight: 600; letter-spacing: -.005em; }
+.panel-n { font-size: 11.5px; color: var(--text-3); }
+.panel-b { padding: 16px; }
+
+/* ---------- chart ---------- */
+.cat { display: grid; grid-template-columns: 108px 1fr 74px; align-items: center; gap: 10px; padding: 6px 0; cursor: pointer; }
+.cat:hover .track { filter: brightness(.94); }
+.cat-n { font-size: 12.5px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.track { height: 22px; background: var(--surface-2); border-radius: 0 4px 4px 0; overflow: hidden; }
+.fill { height: 100%; border-radius: 0 4px 4px 0; transition: filter 180ms ease; }
+.cat-v { text-align: right; font-size: 12.5px; font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.lg { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-2); }
+.sw { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+
+/* ---------- trend ---------- */
+.spark { width: 100%; height: 132px; display: block; }
+.trend-foot { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-3); margin-top: 6px; }
+
+/* ---------- filters + table ---------- */
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; padding: 13px 16px; border-bottom: 1px solid var(--border); }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: .05em; }
+.field input, .field select {
+  font: inherit; font-size: 13px; padding: 7px 9px; border-radius: 7px;
+  border: 1px solid var(--border-strong); background: var(--surface-1); color: var(--text-1);
+  transition: border-color 180ms ease;
+}
+.field input:hover, .field select:hover { border-color: var(--text-3); }
+.search { min-width: 210px; }
+.filters .btn { padding: 7px 11px; }
+.spacer { flex: 1; }
+
+table { width: 100%; border-collapse: collapse; }
+thead th {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--surface-2); text-align: left;
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-3); font-weight: 600;
+  padding: 9px 16px; border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+thead th.r { text-align: right; }
+tbody td { padding: 11px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+tbody tr { transition: background 140ms ease; cursor: pointer; }
+tbody tr:hover { background: var(--surface-2); }
+tbody tr:last-child td { border-bottom: 0; }
+.t-name { font-weight: 600; }
+.t-desc { color: var(--text-3); font-size: 11.5px; margin-top: 2px; max-width: 46ch; }
+.t-amt { text-align: right; font-weight: 600; white-space: nowrap; }
+.t-date { color: var(--text-2); white-space: nowrap; }
+.tag {
+  display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px;
+  border-radius: 20px; font-size: 11.5px; font-weight: 500;
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2); white-space: nowrap;
+}
+.tag .sw { width: 7px; height: 7px; border-radius: 50%; }
+.dir { font-size: 10px; font-weight: 700; letter-spacing: .04em; margin-right: 5px; }
+.tfoot { display: flex; align-items: center; justify-content: space-between; padding: 11px 16px; color: var(--text-3); font-size: 12px; }
+
+@media (max-width: 1080px) {
+  .shell { grid-template-columns: 1fr; }
+  .sidebar { position: static; height: auto; flex-direction: row; align-items: center; gap: 16px; overflow-x: auto; padding: 10px 14px; border-right: 0; border-bottom: 1px solid var(--border); }
+  .nav { flex-direction: row; } .nav-label, .side-foot { display: none; }
+  .grid2 { grid-template-columns: 1fr; }
+  .kpis { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  main { padding: 16px 14px 40px; }
+  .t-desc { display: none; }
+  thead th:nth-child(4), tbody td:nth-child(4) { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 17l6-6 4 4 7-8"/></svg>
+      </div>
+      <div>
+        <div class="brand-name">Budget</div>
+        <div class="brand-sub">Personal ledger</div>
+      </div>
+    </div>
+
+    <nav class="nav" aria-label="Sections">
+      <div class="nav-label">Overview</div>
+      <a href="#" aria-current="page"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Dashboard</a>
+      <a href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Transactions</a>
+      <a href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Reports</a>
+      <div class="nav-label" style="margin-top:12px">Data</div>
+      <a href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>Import statement</a>
+      <a href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10l2.1 2.1m0-14.2l-2.1 2.1m-10 10l-2.1 2.1"/></svg>Categories</a>
+    </nav>
+
+    <div class="side-foot">
+      <div class="who">
+        <div class="avatar">RD</div>
+        <div style="min-width:0">
+          <div class="who-mail">rishdoshi9@gmail.com</div>
+          <a href="#" style="font-size:11px;color:var(--text-3);text-decoration:none">Sign out</a>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <div>
+        <h1>May 2026</h1>
+        <p class="sub">23 transactions · last import 15 May</p>
+      </div>
+      <div class="actions">
+        <button class="btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>Import</button>
+        <button class="btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 16v3h16v-3M12 4v11m0 0l-4-4m4 4l4-4"/></svg>Export PDF</button>
+        <button class="btn btn-primary"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add transaction</button>
+      </div>
+    </div>
+
+    <!-- month strip: dots mark months that actually hold data -->
+    <div class="monthbar" role="group" aria-label="Select month">
+      <button class="mstep empty" aria-pressed="false">Jan</button>
+      <button class="mstep empty" aria-pressed="false">Feb</button>
+      <button class="mstep" aria-pressed="false">Mar<span class="dot"></span></button>
+      <button class="mstep" aria-pressed="false">Apr<span class="dot"></span></button>
+      <button class="mstep" aria-pressed="true">May<span class="dot"></span></button>
+      <button class="mstep empty" aria-pressed="false">Jun</button>
+      <button class="mstep empty" aria-pressed="false">Jul</button>
+      <button class="mstep empty" aria-pressed="false">Aug</button>
+      <div class="spacer"></div>
+      <div class="field" style="padding-right:6px">
+        <select aria-label="Year"><option>2026</option><option>2025</option></select>
+      </div>
+    </div>
+
+    <section class="kpis" aria-label="Month summary">
+      <div class="kpi">
+        <div class="kpi-k">Income</div>
+        <div class="kpi-v num pos">$3,240.00</div>
+        <div class="kpi-d"><span class="chip up">▲ 4.1%</span> vs April</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-k">Expenses</div>
+        <div class="kpi-v num neg">$1,876.42</div>
+        <div class="kpi-d"><span class="chip down">▲ 11.3%</span> vs April</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-k">Net</div>
+        <div class="kpi-v num pos">$1,363.58</div>
+        <div class="kpi-d">42.1% of income kept</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-k">Transactions</div>
+        <div class="kpi-v num">23</div>
+        <div class="kpi-d">$81.58 median expense</div>
+      </div>
+    </section>
+
+    <div class="grid2">
+      <section class="panel">
+        <div class="panel-h">
+          <div class="panel-t">Spending by category</div>
+          <div class="panel-n">May 2026 · sorted by amount</div>
+        </div>
+        <div class="panel-b">
+          <div class="cat"><div class="cat-n">Groceries</div><div class="track"><div class="fill" style="width:100%;background:var(--s1)"></div></div><div class="cat-v num">$612.40</div></div>
+          <div class="cat"><div class="cat-n">Rent &amp; utilities</div><div class="track"><div class="fill" style="width:71%;background:var(--s2)"></div></div><div class="cat-v num">$435.00</div></div>
+          <div class="cat"><div class="cat-n">Dining</div><div class="track"><div class="fill" style="width:46%;background:var(--s3)"></div></div><div class="cat-v num">$281.15</div></div>
+          <div class="cat"><div class="cat-n">Transport</div><div class="track"><div class="fill" style="width:33%;background:var(--s4)"></div></div><div class="cat-v num">$202.88</div></div>
+          <div class="cat"><div class="cat-n">Subscriptions</div><div class="track"><div class="fill" style="width:24%;background:var(--s5)"></div></div><div class="cat-v num">$148.99</div></div>
+          <div class="cat"><div class="cat-n">Everything else</div><div class="track"><div class="fill" style="width:32%;background:var(--s6)"></div></div><div class="cat-v num">$196.00</div></div>
+          <div class="legend">
+            <span class="lg"><span class="sw" style="background:var(--s1)"></span>Groceries</span>
+            <span class="lg"><span class="sw" style="background:var(--s2)"></span>Rent &amp; utilities</span>
+            <span class="lg"><span class="sw" style="background:var(--s3)"></span>Dining</span>
+            <span class="lg"><span class="sw" style="background:var(--s4)"></span>Transport</span>
+            <span class="lg"><span class="sw" style="background:var(--s5)"></span>Subscriptions</span>
+            <span class="lg"><span class="sw" style="background:var(--s6)"></span>Everything else</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-h">
+          <div class="panel-t">Net by month</div>
+          <div class="panel-n">Mar – May</div>
+        </div>
+        <div class="panel-b">
+          <svg class="spark" viewBox="0 0 300 132" role="img" aria-label="Net by month: March $980, April $1,204, May $1,364">
+            <line x1="0" y1="112" x2="300" y2="112" stroke="var(--border)" stroke-width="1"/>
+            <line x1="0" y1="74"  x2="300" y2="74"  stroke="var(--border)" stroke-width="1" stroke-dasharray="3 4"/>
+            <line x1="0" y1="36"  x2="300" y2="36"  stroke="var(--border)" stroke-width="1" stroke-dasharray="3 4"/>
+            <rect x="26"  y="52" width="52" height="60" rx="4" fill="var(--s1)"/>
+            <rect x="124" y="40" width="52" height="72" rx="4" fill="var(--s1)"/>
+            <rect x="222" y="30" width="52" height="82" rx="4" fill="var(--s1)"/>
+            <text x="52"  y="45" text-anchor="middle" font-size="11" font-weight="600" fill="var(--text-2)" font-family="IBM Plex Mono, monospace">$980</text>
+            <text x="150" y="33" text-anchor="middle" font-size="11" font-weight="600" fill="var(--text-2)" font-family="IBM Plex Mono, monospace">$1,204</text>
+            <text x="248" y="23" text-anchor="middle" font-size="11" font-weight="600" fill="var(--text-1)" font-family="IBM Plex Mono, monospace">$1,364</text>
+          </svg>
+          <div class="trend-foot"><span>March</span><span>April</span><span>May</span></div>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-h">
+        <div class="panel-t">Transactions</div>
+        <div class="panel-n">Showing 23 of 23</div>
+      </div>
+
+      <div class="filters">
+        <div class="field search" style="flex:1;min-width:200px">
+          <label for="q">Search</label>
+          <input id="q" type="search" placeholder="Name or description">
+        </div>
+        <div class="field">
+          <label for="ty">Type</label>
+          <select id="ty"><option>All types</option><option>Income</option><option>Expense</option></select>
+        </div>
+        <div class="field">
+          <label for="ct">Category</label>
+          <select id="ct"><option>All categories</option><option>Groceries</option><option>Subscriptions</option></select>
+        </div>
+        <div class="field">
+          <label for="df">From</label>
+          <input id="df" type="date" value="2026-05-01">
+        </div>
+        <div class="field">
+          <label for="dt">To</label>
+          <input id="dt" type="date" value="2026-05-31">
+        </div>
+        <button class="btn">Clear</button>
+      </div>
+
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col">Category</th>
+              <th scope="col" class="r">Amount</th>
+              <th scope="col">Description</th>
+              <th scope="col">Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><div class="t-name">Walmart</div></td>
+              <td><span class="tag"><span class="sw" style="background:var(--s1)"></span>Groceries</span></td>
+              <td class="t-amt num neg"><span class="dir">DR</span>$36.74</td>
+              <td><div class="t-desc">Card Purchase 05/14 Walmart.Com 800-925-6278 AR Card 6758</div></td>
+              <td class="t-date num">14 May 2026</td>
+            </tr>
+            <tr>
+              <td><div class="t-name">Google Play</div></td>
+              <td><span class="tag"><span class="sw" style="background:var(--s5)"></span>Subscriptions</span></td>
+              <td class="t-amt num neg"><span class="dir">DR</span>$23.00</td>
+              <td><div class="t-desc">Card Purchase 05/15 Google Play G.CO/Helppay# CA Card 6758</div></td>
+              <td class="t-date num">15 May 2026</td>
+            </tr>
+            <tr>
+              <td><div class="t-name">Walmart</div></td>
+              <td><span class="tag"><span class="sw" style="background:var(--s1)"></span>Groceries</span></td>
+              <td class="t-amt num pos"><span class="dir">CR</span>$8.63</td>
+              <td><div class="t-desc">Card Purchase Return 05/13 Walmart.Com 800-925-6278 AR Card 6758</div></td>
+              <td class="t-date num">13 May 2026</td>
+            </tr>
+            <tr>
+              <td><div class="t-name">Payroll deposit</div></td>
+              <td><span class="tag"><span class="sw" style="background:var(--s3)"></span>Salary</span></td>
+              <td class="t-amt num pos"><span class="dir">CR</span>$1,620.00</td>
+              <td><div class="t-desc">Direct Deposit ACH 05/15 Employer Payroll</div></td>
+              <td class="t-date num">15 May 2026</td>
+            </tr>
+            <tr>
+              <td><div class="t-name">Shoprite</div></td>
+              <td><span class="tag"><span class="sw" style="background:var(--s1)"></span>Groceries</span></td>
+              <td class="t-amt num neg"><span class="dir">DR</span>$74.21</td>
+              <td><div class="t-desc">Card Purchase 05/11 Shoprite #412 Jersey City NJ Card 6758</div></td>
+              <td class="t-date num">11 May 2026</td>
+            </tr>
+            <tr>
+              <td><div class="t-name">NJ Transit</div></td>
+              <td><span class="tag"><span class="sw" style="background:var(--s4)"></span>Transport</span></td>
+              <td class="t-amt num neg"><span class="dir">DR</span>$42.50</td>
+              <td><div class="t-desc">Card Purchase 05/09 NJT Mobile App Newark NJ Card 6758</div></td>
+              <td class="t-date num">09 May 2026</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="tfoot">
+        <span>6 of 23 shown in this mockup</span>
+        <span>Total this month · <strong class="num" style="color:var(--text-1)">−$1,876.42</strong></span>
+      </div>
+    </section>
+  </main>
+</div>
+</body>
+</html>

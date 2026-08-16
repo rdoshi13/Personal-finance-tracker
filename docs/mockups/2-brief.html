@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup 2 — Brief</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: light;
+  --bg:        #f7f5f1;
+  --card:      #fffefc;
+  --card-2:    #f2efe9;
+  --line:      #e5e0d7;
+  --line-2:    #d4cec1;
+  --ink-1:     #1c1a17;
+  --ink-2:     #57534b;
+  --ink-3:     #8a847a;
+  --accent:    #1e40af;
+  --accent-ink:#ffffff;
+  --pos:       #0f7a4d;
+  --neg:       #b3341f;
+  --pos-bg:    #e6f2ea;
+  --neg-bg:    #fbeae6;
+  --focus:     #2a78d6;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #4a3aa7;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg:     #14130f;
+    --card:   #1d1b17;
+    --card-2: #262320;
+    --line:   #322e28;
+    --line-2: #45403a;
+    --ink-1:  #f2efe9;
+    --ink-2:  #b4ada2;
+    --ink-3:  #857e73;
+    --accent: #6d95f0;
+    --accent-ink: #14130f;
+    --pos:    #45c88a;
+    --neg:    #f08262;
+    --pos-bg: #14291f;
+    --neg-bg: #2c1a15;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #9085e9;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink-1);
+  font-family: 'Outfit', system-ui, sans-serif; font-size: 15px; line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+.num { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
+
+/* ---------- nav ---------- */
+header.bar { border-bottom: 1px solid var(--line); background: var(--bg); position: sticky; top: 0; z-index: 20; }
+.bar-in { display: flex; align-items: center; gap: 20px; height: 62px; }
+.logo { display: flex; align-items: center; gap: 9px; font-weight: 600; letter-spacing: -.02em; }
+.logo-m { width: 26px; height: 26px; border-radius: 7px; background: var(--ink-1); color: var(--bg); display: grid; place-items: center; }
+nav.links { display: flex; gap: 3px; margin-left: 14px; }
+nav.links a {
+  padding: 6px 12px; border-radius: 20px; text-decoration: none; color: var(--ink-2);
+  font-weight: 500; font-size: 14px; transition: background 200ms ease, color 200ms ease; cursor: pointer;
+}
+nav.links a:hover { background: var(--card-2); color: var(--ink-1); }
+nav.links a[aria-current="page"] { background: var(--ink-1); color: var(--bg); }
+.bar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.icon-btn {
+  width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  border: 1px solid var(--line-2); background: var(--card); color: var(--ink-2);
+  transition: background 200ms ease, color 200ms ease;
+}
+.icon-btn:hover { background: var(--card-2); color: var(--ink-1); }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--card-2); border: 1px solid var(--line-2); display: grid; place-items: center; font-size: 12px; font-weight: 600; color: var(--ink-2); }
+
+/* ---------- hero ---------- */
+.hero { padding: 46px 0 34px; display: grid; grid-template-columns: 1.15fr .85fr; gap: 56px; align-items: end; }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 12px; }
+.hero-n { font-size: clamp(48px, 7vw, 76px); font-weight: 600; letter-spacing: -.045em; line-height: .96; margin: 0; }
+.hero-sub { color: var(--ink-2); margin: 14px 0 0; font-size: 16px; max-width: 46ch; text-wrap: pretty; }
+.hero-sub strong { color: var(--ink-1); font-weight: 600; }
+.io { display: flex; gap: 10px; margin-top: 22px; }
+.io-c { flex: 1; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+.io-k { font-size: 11.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3); font-weight: 600; }
+.io-v { font-size: 22px; font-weight: 600; letter-spacing: -.03em; margin-top: 5px; }
+.pos { color: var(--pos); } .neg { color: var(--neg); }
+.delta { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; padding: 2px 7px; border-radius: 6px; margin-top: 7px; }
+.delta.up { background: var(--pos-bg); color: var(--pos); }
+.delta.down { background: var(--neg-bg); color: var(--neg); }
+
+/* month picker */
+.months { display: flex; flex-direction: column; gap: 4px; }
+.m-row {
+  display: grid; grid-template-columns: 46px 1fr auto; align-items: center; gap: 12px;
+  padding: 8px 12px; border-radius: 10px; cursor: pointer; border: 1px solid transparent;
+  transition: background 200ms ease, border-color 200ms ease;
+}
+.m-row:hover { background: var(--card); border-color: var(--line); }
+.m-row[aria-current="true"] { background: var(--card); border-color: var(--line-2); }
+.m-lab { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.m-row[aria-current="true"] .m-lab { color: var(--ink-1); }
+.m-bar { height: 7px; background: var(--card-2); border-radius: 4px; overflow: hidden; }
+.m-bar i { display: block; height: 100%; background: var(--s1); border-radius: 4px; }
+.m-val { font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+.m-row.empty .m-lab, .m-row.empty .m-val { color: var(--ink-3); }
+.m-row.empty .m-bar i { background: var(--line-2); }
+
+/* ---------- insight ---------- */
+.insight {
+  display: flex; gap: 14px; align-items: flex-start;
+  background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--s2);
+  border-radius: 12px; padding: 16px 18px; margin-bottom: 30px;
+}
+.insight-i { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--neg-bg); color: var(--neg); display: grid; place-items: center; }
+.insight p { margin: 0; font-size: 14.5px; color: var(--ink-2); text-wrap: pretty; }
+.insight strong { color: var(--ink-1); font-weight: 600; }
+
+/* ---------- sections ---------- */
+.sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin: 0 0 16px; }
+.sec-t { font-size: 19px; font-weight: 600; letter-spacing: -.025em; margin: 0; }
+.sec-a { font-size: 13.5px; color: var(--ink-2); text-decoration: none; font-weight: 500; cursor: pointer; }
+.sec-a:hover { color: var(--ink-1); text-decoration: underline; text-underline-offset: 3px; }
+
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 44px; padding-bottom: 44px; }
+
+/* category bars */
+.cats { display: flex; flex-direction: column; gap: 2px; }
+.crow {
+  display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: baseline;
+  padding: 11px 12px; border-radius: 10px; cursor: pointer; transition: background 200ms ease;
+}
+.crow:hover { background: var(--card); }
+.cname { display: flex; align-items: center; gap: 9px; font-weight: 500; font-size: 14.5px; }
+.cdot { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+.cval { font-size: 14.5px; font-weight: 600; }
+.cshare { font-size: 12px; color: var(--ink-3); margin-left: 7px; font-weight: 500; }
+.ctrack { grid-column: 1 / -1; height: 6px; background: var(--card-2); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+.ctrack i { display: block; height: 100%; border-radius: 3px; }
+
+/* timeline */
+.day { margin-bottom: 22px; }
+.day-h { display: flex; align-items: baseline; justify-content: space-between; padding: 0 2px 9px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.day-d { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3); }
+.day-t { font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+.tx {
+  display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center;
+  padding: 11px 10px; border-radius: 11px; cursor: pointer; transition: background 200ms ease;
+}
+.tx:hover { background: var(--card); }
+.tx-i { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--card-2); color: var(--ink-2); font-size: 13px; font-weight: 600; }
+.tx-n { font-weight: 500; font-size: 14.5px; line-height: 1.3; }
+.tx-c { font-size: 12.5px; color: var(--ink-3); display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.tx-a { font-size: 15px; font-weight: 600; white-space: nowrap; }
+.tx-a .sign { font-size: 12px; opacity: .8; margin-right: 1px; }
+
+/* empty state */
+.empty-state {
+  background: var(--card); border: 1px dashed var(--line-2); border-radius: 16px;
+  padding: 34px 28px; text-align: center; margin-bottom: 44px;
+}
+.empty-state h3 { margin: 12px 0 6px; font-size: 17px; font-weight: 600; letter-spacing: -.02em; }
+.empty-state p { margin: 0 auto 18px; color: var(--ink-2); max-width: 44ch; font-size: 14.5px; text-wrap: pretty; }
+.btn {
+  font: inherit; font-weight: 500; font-size: 14px; cursor: pointer; border-radius: 22px; padding: 9px 18px;
+  border: 1px solid var(--line-2); background: var(--card); color: var(--ink-1);
+  display: inline-flex; align-items: center; gap: 7px;
+  transition: background 200ms ease, border-color 200ms ease, transform 120ms ease;
+}
+.btn:hover { background: var(--card-2); border-color: var(--ink-3); }
+.btn:active { transform: translateY(1px); }
+.btn-solid { background: var(--ink-1); color: var(--bg); border-color: var(--ink-1); }
+.btn-solid:hover { background: var(--ink-1); filter: brightness(1.25); border-color: var(--ink-1); }
+
+footer { border-top: 1px solid var(--line); padding: 26px 0 40px; color: var(--ink-3); font-size: 13px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+footer a { color: var(--ink-3); text-decoration: none; margin-left: 18px; }
+footer a:hover { color: var(--ink-1); }
+
+@media (max-width: 900px) {
+  .hero { grid-template-columns: 1fr; gap: 30px; padding: 30px 0 24px; }
+  .split { grid-template-columns: 1fr; gap: 34px; }
+  nav.links { display: none; }
+}
+@media (max-width: 560px) { .wrap { padding: 0 18px; } .io { flex-direction: column; } }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap bar-in">
+    <div class="logo">
+      <span class="logo-m" aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 17l6-6 4 4 7-8"/></svg>
+      </span>
+      Budget
+    </div>
+    <nav class="links" aria-label="Primary">
+      <a href="#" aria-current="page">Overview</a>
+      <a href="#">Transactions</a>
+      <a href="#">Categories</a>
+      <a href="#">Reports</a>
+    </nav>
+    <div class="bar-right">
+      <button class="icon-btn" aria-label="Import statement"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg></button>
+      <button class="icon-btn" aria-label="Switch to dark theme"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 14.5A8.5 8.5 0 019.5 4a8.5 8.5 0 1010.5 10.5z"/></svg></button>
+      <button class="btn btn-solid"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add</button>
+      <div class="avatar" title="rishdoshi9@gmail.com">RD</div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <div>
+      <div class="eyebrow">Net saved · May 2026</div>
+      <h1 class="hero-n num pos">+$1,363.58</h1>
+      <p class="hero-sub">You kept <strong>42.1%</strong> of what came in this month — your best rate since March, even though spending rose.</p>
+      <div class="io">
+        <div class="io-c">
+          <div class="io-k">In</div>
+          <div class="io-v num pos">$3,240.00</div>
+          <span class="delta up">▲ 4.1% vs April</span>
+        </div>
+        <div class="io-c">
+          <div class="io-k">Out</div>
+          <div class="io-v num neg">$1,876.42</div>
+          <span class="delta down">▲ 11.3% vs April</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="months" role="group" aria-label="Choose a month">
+      <div class="m-row" aria-current="false"><span class="m-lab">Mar</span><span class="m-bar"><i style="width:58%"></i></span><span class="m-val num">$980</span></div>
+      <div class="m-row" aria-current="false"><span class="m-lab">Apr</span><span class="m-bar"><i style="width:76%"></i></span><span class="m-val num">$1,204</span></div>
+      <div class="m-row" aria-current="true"><span class="m-lab">May</span><span class="m-bar"><i style="width:100%"></i></span><span class="m-val num">$1,364</span></div>
+      <div class="m-row empty" aria-current="false"><span class="m-lab">Jun</span><span class="m-bar"><i style="width:3%"></i></span><span class="m-val num">—</span></div>
+      <div class="m-row empty" aria-current="false"><span class="m-lab">Jul</span><span class="m-bar"><i style="width:3%"></i></span><span class="m-val num">—</span></div>
+      <div class="m-row empty" aria-current="false"><span class="m-lab">Aug</span><span class="m-bar"><i style="width:3%"></i></span><span class="m-val num">—</span></div>
+    </div>
+  </section>
+
+  <div class="insight">
+    <span class="insight-i" aria-hidden="true">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 8v5m0 3.5v.01"/><circle cx="12" cy="12" r="9"/></svg>
+    </span>
+    <p><strong>Groceries drove the increase.</strong> You spent $612.40 across 9 grocery trips — $148 more than April, and roughly a third of everything you spent this month.</p>
+  </div>
+
+  <div class="split">
+    <section>
+      <div class="sec-h">
+        <h2 class="sec-t">Where it went</h2>
+        <a class="sec-a" href="#">All categories →</a>
+      </div>
+      <div class="cats">
+        <div class="crow">
+          <span class="cname"><span class="cdot" style="background:var(--s1)"></span>Groceries</span>
+          <span class="cval num">$612.40<span class="cshare">33%</span></span>
+          <span class="ctrack"><i style="width:100%;background:var(--s1)"></i></span>
+        </div>
+        <div class="crow">
+          <span class="cname"><span class="cdot" style="background:var(--s2)"></span>Rent &amp; utilities</span>
+          <span class="cval num">$435.00<span class="cshare">23%</span></span>
+          <span class="ctrack"><i style="width:71%;background:var(--s2)"></i></span>
+        </div>
+        <div class="crow">
+          <span class="cname"><span class="cdot" style="background:var(--s3)"></span>Dining</span>
+          <span class="cval num">$281.15<span class="cshare">15%</span></span>
+          <span class="ctrack"><i style="width:46%;background:var(--s3)"></i></span>
+        </div>
+        <div class="crow">
+          <span class="cname"><span class="cdot" style="background:var(--s4)"></span>Transport</span>
+          <span class="cval num">$202.88<span class="cshare">11%</span></span>
+          <span class="ctrack"><i style="width:33%;background:var(--s4)"></i></span>
+        </div>
+        <div class="crow">
+          <span class="cname"><span class="cdot" style="background:var(--s5)"></span>Subscriptions</span>
+          <span class="cval num">$148.99<span class="cshare">8%</span></span>
+          <span class="ctrack"><i style="width:24%;background:var(--s5)"></i></span>
+        </div>
+        <div class="crow">
+          <span class="cname"><span class="cdot" style="background:var(--s6)"></span>Everything else</span>
+          <span class="cval num">$196.00<span class="cshare">10%</span></span>
+          <span class="ctrack"><i style="width:32%;background:var(--s6)"></i></span>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-h">
+        <h2 class="sec-t">Recent activity</h2>
+        <a class="sec-a" href="#">All 23 →</a>
+      </div>
+
+      <div class="day">
+        <div class="day-h"><span class="day-d">Friday 15 May</span><span class="day-t num pos">+$1,597.00</span></div>
+        <div class="tx">
+          <span class="tx-i">PD</span>
+          <span><span class="tx-n">Payroll deposit</span><span class="tx-c"><span class="cdot" style="background:var(--s3)"></span>Salary</span></span>
+          <span class="tx-a num pos"><span class="sign">+</span>$1,620.00</span>
+        </div>
+        <div class="tx">
+          <span class="tx-i">GP</span>
+          <span><span class="tx-n">Google Play</span><span class="tx-c"><span class="cdot" style="background:var(--s5)"></span>Subscriptions</span></span>
+          <span class="tx-a num neg"><span class="sign">−</span>$23.00</span>
+        </div>
+      </div>
+
+      <div class="day">
+        <div class="day-h"><span class="day-d">Thursday 14 May</span><span class="day-t num neg">−$36.74</span></div>
+        <div class="tx">
+          <span class="tx-i">WM</span>
+          <span><span class="tx-n">Walmart</span><span class="tx-c"><span class="cdot" style="background:var(--s1)"></span>Groceries</span></span>
+          <span class="tx-a num neg"><span class="sign">−</span>$36.74</span>
+        </div>
+      </div>
+
+      <div class="day">
+        <div class="day-h"><span class="day-d">Wednesday 13 May</span><span class="day-t num pos">+$8.63</span></div>
+        <div class="tx">
+          <span class="tx-i">WM</span>
+          <span><span class="tx-n">Walmart refund</span><span class="tx-c"><span class="cdot" style="background:var(--s1)"></span>Groceries</span></span>
+          <span class="tx-a num pos"><span class="sign">+</span>$8.63</span>
+        </div>
+      </div>
+
+      <div class="day">
+        <div class="day-h"><span class="day-d">Monday 11 May</span><span class="day-t num neg">−$74.21</span></div>
+        <div class="tx">
+          <span class="tx-i">SR</span>
+          <span><span class="tx-n">Shoprite</span><span class="tx-c"><span class="cdot" style="background:var(--s1)"></span>Groceries</span></span>
+          <span class="tx-a num neg"><span class="sign">−</span>$74.21</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- what an empty month should look like instead of four $0.00 cards -->
+  <div class="empty-state">
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.6" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4m8-4v4"/></svg>
+    <h3>Nothing recorded in August yet</h3>
+    <p>Your most recent activity was May 2026. Jump back to it, or bring in a statement to fill the gap.</p>
+    <button class="btn btn-solid">Go to May 2026</button>
+    <button class="btn">Import a statement</button>
+  </div>
+</main>
+
+<footer class="wrap">
+  <span>© Rishabh Doshi 2026</span>
+  <span><a href="#">Privacy</a><a href="#">Terms</a><a href="#">Export data</a></span>
+</footer>
+
+</body>
+</html>

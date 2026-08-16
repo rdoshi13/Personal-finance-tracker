@@ -1,0 +1,63 @@
+/* Design tokens for the v2 UI. Scoped to .bq-root so the legacy Report.js styling
+   in App.css is untouched while both UIs coexist behind REACT_APP_UI_V2. */
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+.bq-root {
+  color-scheme: dark;
+  --bg:#0b0e13; --panel:#141922; --panel-2:#1b212c; --panel-3:#232b38;
+  --line:#252d3a; --line-2:#394454;
+  --ink-1:#e9eef6; --ink-2:#9aa6b8; --ink-3:#6b7688;
+  --accent:#5b8def; --accent-soft:#1c2c4d; --accent-ink:#fff;
+  --xp:#7c5cff; --xp-2:#b18cff; --gold:#e0a944; --gold-soft:#2e2413;
+  --pos:#45c88a; --neg:#f08262; --pos-bg:#10291e; --neg-bg:#2b1813;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.28);
+}
+
+[data-theme="light"] .bq-root,
+.bq-root[data-theme="light"] {
+  color-scheme: light;
+  --bg:#eff1f5; --panel:#fff; --panel-2:#f5f7fa; --panel-3:#e9edf3;
+  --line:#e2e6ec; --line-2:#c8d0da;
+  --ink-1:#0f1622; --ink-2:#4d5769; --ink-3:#7b8598;
+  --accent:#1e40af; --accent-soft:#dde5fb; --accent-ink:#fff;
+  --xp:#6538e8; --xp-2:#9a76f5; --gold:#b45309; --gold-soft:#fbf0dc;
+  --pos:#0f7a4d; --neg:#b3341f; --pos-bg:#e7f4ed; --neg-bg:#fceeeb;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#4a3aa7;
+  --shadow:0 1px 2px rgba(16,25,43,.06),0 8px 22px rgba(16,25,43,.07);
+}
+
+.bq-root {
+  background: var(--bg);
+  color: var(--ink-1);
+  font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+}
+.bq-root *, .bq-root *::before, .bq-root *::after { box-sizing: border-box; }
+.bq-root button { font: inherit; cursor: pointer; }
+.bq-root :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+
+.bq-num {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em;
+}
+.bq-pos { color: var(--pos); }
+.bq-neg { color: var(--neg); }
+
+.bq-kbd {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; padding: 2px 5px;
+  border-radius: 4px; background: var(--panel-3); border: 1px solid var(--line-2); color: var(--ink-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bq-root *, .bq-root *::before, .bq-root *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

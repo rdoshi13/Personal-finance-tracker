@@ -7,7 +7,8 @@
     "test": "node --test test/*.test.js",
     "backfill:names": "node scripts/backfillMissingTransactionNames.js",
     "clean:statement-names": "node scripts/cleanStatementTransactionNames.js",
-    "reset:password": "node scripts/resetPassword.js"
+    "reset:password": "node scripts/resetPassword.js",
+    "backfill:progress": "node scripts/backfillProgress.js"
   },
   "keywords": [],
   "author": "",

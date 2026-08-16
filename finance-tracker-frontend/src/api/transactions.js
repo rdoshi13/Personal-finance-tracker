@@ -44,6 +44,9 @@ const getTransactions = async () =>
 const getMonthlyReport = async (year, month) =>
     requestJson(`/api/transactions/report/${year}/${month}`, {}, 'Failed to fetch report');
 
+const getYearSummary = async (year) =>
+    requestJson(`/api/transactions/summary?year=${year}`, {}, 'Failed to fetch summary');
+
 const createTransaction = async (transaction) =>
     requestJson(
         '/api/transactions',
@@ -139,6 +142,7 @@ export {
     deleteTransaction,
     getMonthlyReport,
     getTransactions,
+    getYearSummary,
     importTransactions,
     previewTransactionImport,
     updateTransaction,
