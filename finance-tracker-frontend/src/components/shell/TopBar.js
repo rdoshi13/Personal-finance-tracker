@@ -1,5 +1,5 @@
 import React from 'react';
-import { useAppState } from '../../state/AppStateContext';
+import { isMonthScopedView, useAppState } from '../../state/AppStateContext';
 import { periodLabel } from '../../lib/money';
 import { MoonIcon, PlusIcon, SearchIcon, SunIcon, UploadIcon } from './icons';
 
@@ -17,7 +17,7 @@ const TopBar = ({ onAdd, onImport, onOpenPalette }) => {
         <header className="bq-top">
             <div>
                 <div className="bq-title">{TITLES[view]}</div>
-                <div className="bq-sub">{periodLabel(period)}</div>
+                {isMonthScopedView(view) && <div className="bq-sub">{periodLabel(period)}</div>}
             </div>
             <div className="bq-grow" />
 

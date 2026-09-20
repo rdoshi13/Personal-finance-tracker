@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useAppState } from '../../state/AppStateContext';
+import { isMonthScopedView, useAppState } from '../../state/AppStateContext';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import MonthStrip from './MonthStrip';
@@ -80,7 +80,7 @@ const AppShell = () => {
                 <TopBar onAdd={openAdd} onImport={openImport} onOpenPalette={() => setPaletteOpen(true)} />
 
                 <main className="bq-main">
-                    <MonthStrip />
+                    {isMonthScopedView(view) && <MonthStrip />}
 
                     {error && (
                         <div className="bq-empty" style={{ marginBottom: 14 }}>
