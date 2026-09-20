@@ -37,7 +37,11 @@ jest.mock('./Sidebar', () => () => <div />);
 jest.mock('./MonthStrip', () => () => <div data-testid="month-strip" />);
 jest.mock('./Toasts', () => () => <div />);
 jest.mock('../CommandPalette', () => () => <div />);
-jest.mock('../ImportStatementModal', () => () => <div />);
+let importModalProps;
+jest.mock('../ImportStatementModal', () => (props) => {
+    importModalProps = props;
+    return <div data-testid="import-modal" />;
+});
 jest.mock('../../views/DashboardView', () => () => <div />);
 jest.mock('../../views/QuestsView', () => () => <div />);
 jest.mock('../../views/AchievementsView', () => () => <div />);
@@ -59,6 +63,7 @@ const rent = {
 describe('AppShell edit wiring', () => {
     beforeEach(() => {
         addTransactionProps.length = 0;
+        importModalProps = undefined;
         jest.clearAllMocks();
         mockState.monthTransactions = [rent];
     });
@@ -137,5 +142,42 @@ describe('AppShell month chrome', () => {
         expect(screen.getByText('2 transactions')).toBeInTheDocument();
         expect(screen.getByText('All time')).toBeInTheDocument();
         expect(screen.queryByText(/net/)).not.toBeInTheDocument();
+    });
+});
+
+describe('AppShell import wiring', () => {
+    beforeEach(() => {
+        importModalProps = undefined;
+        jest.clearAllMocks();
+        mockState.view = 'transactions';
+        mockState.monthTransactions = [rent];
+    });
+
+    test('a finished import reloads the data and says so', async () => {
+        render(<AppShell />);
+        // Opened from the TopBar's import button.
+        fireEvent.click(screen.getByLabelText('Import statement'));
+        expect(screen.getByTestId('import-modal')).toBeInTheDocument();
+
+        await act(async () => { await importModalProps.onImported([{ _id: 'new-1' }]); });
+
+        // The modal reports what it imported, but the list is re-read from the
+        // server rather than patched from that response.
+        expect(mockState.reload).toHaveBeenCalled();
+        expect(mockState.refreshProgress).toHaveBeenCalled();
+        expect(mockState.pushToast).toHaveBeenCalledWith(
+            'Statement imported', expect.any(String), 'xp'
+        );
+        expect(screen.queryByTestId('import-modal')).not.toBeInTheDocument();
+    });
+
+    test('closing the import modal changes nothing', () => {
+        render(<AppShell />);
+        fireEvent.click(screen.getByLabelText('Import statement'));
+
+        act(() => { importModalProps.onClose(); });
+
+        expect(screen.queryByTestId('import-modal')).not.toBeInTheDocument();
+        expect(mockState.reload).not.toHaveBeenCalled();
     });
 });
