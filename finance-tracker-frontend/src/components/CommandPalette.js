@@ -25,6 +25,7 @@ const CommandPalette = ({ open, onClose, onAdd, onImport }) => {
         { label: 'Import statement', sub: 'Upload a CSV or PDF', run: onImport },
         { label: 'Go to Dashboard', sub: 'View', run: () => setView('dashboard') },
         { label: 'Go to Transactions', sub: 'View', run: () => setView('transactions') },
+        { label: 'Go to Breakdown', sub: 'View', run: () => setView('breakdown') },
         { label: 'Go to Quests', sub: 'View', run: () => setView('quests') },
         { label: 'Go to Achievements', sub: 'View', run: () => setView('achievements') },
         { label: 'Next month', sub: 'Move forward', run: () => stepPeriod(1) },

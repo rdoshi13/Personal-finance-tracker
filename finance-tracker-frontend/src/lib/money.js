@@ -48,6 +48,37 @@ const spendByCategory = (transactions = []) => {
     return totals;
 };
 
+/**
+ * Category totals for one month, split by direction and sorted largest first.
+ * `share` is of that side's own total, so income and outflow each sum to 1 --
+ * comparing a category against the other side's total would be meaningless.
+ * Subscriptions count as outflow, matching summarize() and the server.
+ */
+const categoryBreakdown = (transactions = []) => {
+    const buckets = { income: {}, outflow: {} };
+
+    transactions.forEach((transaction) => {
+        let side = null;
+        if (isIncome(transaction)) side = 'income';
+        else if (isOutflow(transaction)) side = 'outflow';
+        if (!side) return;
+
+        const key = (transaction.category || 'Uncategorized').trim() || 'Uncategorized';
+        const bucket = buckets[side];
+        if (!bucket[key]) bucket[key] = { category: key, total: 0, count: 0 };
+        bucket[key].total += Number(transaction.amount) || 0;
+        bucket[key].count += 1;
+    });
+
+    const finalise = (bucket) => {
+        const rows = Object.values(bucket).sort((a, b) => b.total - a.total);
+        const sum = rows.reduce((acc, row) => acc + row.total, 0);
+        return rows.map((row) => ({ ...row, share: sum ? row.total / sum : 0 }));
+    };
+
+    return { income: finalise(buckets.income), outflow: finalise(buckets.outflow) };
+};
+
 const initialsOf = (name) =>
     String(name || '?')
         .trim()
@@ -61,6 +92,7 @@ export {
     MONTHS,
     MONTHS_LONG,
     OUTFLOW_TYPES,
+    categoryBreakdown,
     initialsOf,
     isIncome,
     isOutflow,

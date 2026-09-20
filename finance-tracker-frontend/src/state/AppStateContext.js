@@ -204,7 +204,7 @@ export const useAppState = () => {
 // Achievements are derived from the whole transaction history; every other view is
 // scoped to the selected month. The shell uses this to hide month chrome -- the
 // strip, the subtitle, the per-month totals -- on views where it would be lying.
-const MONTH_SCOPED_VIEWS = new Set(['dashboard', 'transactions', 'quests']);
+const MONTH_SCOPED_VIEWS = new Set(['dashboard', 'transactions', 'breakdown', 'quests']);
 const isMonthScopedView = (view) => MONTH_SCOPED_VIEWS.has(view);
 
 export { pickInitialPeriod, currentPeriodKey, isMonthScopedView };
