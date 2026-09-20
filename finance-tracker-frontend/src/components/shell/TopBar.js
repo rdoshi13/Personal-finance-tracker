@@ -7,6 +7,7 @@ const TITLES = {
     dashboard: 'Dashboard',
     transactions: 'Transactions',
     breakdown: 'Breakdown',
+    subscriptions: 'Subscriptions',
     quests: 'Quests',
     achievements: 'Achievements',
 };

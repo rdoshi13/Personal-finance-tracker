@@ -8,6 +8,7 @@ import {
 import { deleteTransaction, getTransactions, getYearSummary } from '../api/transactions';
 import { getBudgets } from '../api/budgets';
 import { claimQuest, getProgress, getQuests } from '../api/progress';
+import { getSubscriptionStates, setSubscriptionCancelled } from '../api/subscriptions';
 
 jest.mock('../api/transactions', () => ({
     getTransactions: jest.fn(),
@@ -23,6 +24,11 @@ jest.mock('../api/progress', () => ({
     getProgress: jest.fn(),
     getQuests: jest.fn(),
     claimQuest: jest.fn(),
+}));
+jest.mock('../api/subscriptions', () => ({
+    getSubscriptionStates: jest.fn(),
+    setSubscriptionCancelled: jest.fn(),
+    toCancelledKeys: (payload) => (payload?.cancelled || []).map((e) => e.key),
 }));
 
 const txn = (id, periodKey, type, amount, category = 'Groceries') => ({
@@ -58,6 +64,8 @@ beforeEach(() => {
     getQuests.mockResolvedValue({ quests: [] });
     getYearSummary.mockResolvedValue({ months: [] });
     deleteTransaction.mockResolvedValue(undefined);
+    getSubscriptionStates.mockResolvedValue({ cancelled: [] });
+    setSubscriptionCancelled.mockResolvedValue({});
 });
 
 describe('pickInitialPeriod', () => {
@@ -200,5 +208,78 @@ describe('AppStateProvider', () => {
         expect(ctx.transactions).toHaveLength(1);
         expect(ctx.budgets).toEqual({});
         expect(ctx.progress).toBeNull();
+    });
+});
+
+describe('AppStateProvider subscriptions', () => {
+    // The provider uses the real clock, so charges are placed relative to today.
+    // Fixed dates would read as lapsed the moment the calendar moved past them.
+    const daysAgo = (n) => new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString();
+    const sub = (id, agoDays, amount = 10) => ({
+        _id: id, name: 'Spotify', type: 'subscription', category: 'Streaming',
+        amount, date: daysAgo(agoDays),
+    });
+
+    test('derives subscriptions from the whole history, not the selected month', async () => {
+        getTransactions.mockResolvedValue([
+            sub('a', 61), sub('b', 30), sub('c', 0),
+        ]);
+        await renderProvider();
+
+        expect(ctx.subscriptions).toHaveLength(1);
+        expect(ctx.subscriptions[0]).toMatchObject({ key: 'spotify', cadence: 'monthly' });
+        expect(ctx.subscriptionMonthlyTotal).toBeCloseTo(10, 2);
+    });
+
+    test('a stored cancellation is applied on load', async () => {
+        getTransactions.mockResolvedValue([sub('a', 30), sub('b', 0)]);
+        getSubscriptionStates.mockResolvedValue({ cancelled: [{ key: 'spotify' }] });
+        await renderProvider();
+
+        expect(ctx.subscriptions[0].status).toBe('cancelled');
+        expect(ctx.subscriptionMonthlyTotal).toBe(0);
+    });
+
+    test('cancelling applies immediately and persists', async () => {
+        getTransactions.mockResolvedValue([sub('a', 30), sub('b', 0)]);
+        await renderProvider();
+        expect(ctx.subscriptions[0].status).toBe('active');
+
+        await act(async () => { await ctx.setSubscriptionCancelled('spotify', true); });
+
+        expect(setSubscriptionCancelled).toHaveBeenCalledWith('spotify', true);
+        expect(ctx.subscriptions[0].status).toBe('cancelled');
+    });
+
+    test('a failed cancel rolls back rather than lying about the state', async () => {
+        getTransactions.mockResolvedValue([sub('a', 30), sub('b', 0)]);
+        await renderProvider();
+        setSubscriptionCancelled.mockRejectedValue(new Error('Network down'));
+
+        await act(async () => { await ctx.setSubscriptionCancelled('spotify', true); });
+
+        expect(ctx.subscriptions[0].status).toBe('active');
+        expect(ctx.toasts.some((t) => t.title === 'Could not cancel')).toBe(true);
+    });
+
+    test('restoring a cancelled subscription brings it back to the total', async () => {
+        getTransactions.mockResolvedValue([sub('a', 30), sub('b', 0)]);
+        getSubscriptionStates.mockResolvedValue({ cancelled: [{ key: 'spotify' }] });
+        await renderProvider();
+
+        await act(async () => { await ctx.setSubscriptionCancelled('spotify', false); });
+
+        expect(setSubscriptionCancelled).toHaveBeenCalledWith('spotify', false);
+        expect(ctx.subscriptions[0].status).toBe('active');
+        expect(ctx.subscriptionMonthlyTotal).toBeCloseTo(10, 2);
+    });
+
+    test('a failing subscription-state call does not block the app', async () => {
+        getTransactions.mockResolvedValue([sub('a', 0)]);
+        getSubscriptionStates.mockRejectedValue(new Error('boom'));
+        await renderProvider();
+
+        expect(ctx.error).toBe('');
+        expect(ctx.subscriptions).toHaveLength(1);
     });
 });

@@ -1,12 +1,13 @@
 import React from 'react';
 import { useAppState } from '../../state/AppStateContext';
 import { initialsOf } from '../../lib/money';
-import { BarsIcon, FlameIcon, GridIcon, ListIcon, MedalIcon, StarIcon, TrendIcon } from './icons';
+import { BarsIcon, FlameIcon, GridIcon, ListIcon, MedalIcon, RepeatIcon, StarIcon, TrendIcon } from './icons';
 
 const NAV = [
     { id: 'dashboard', label: 'Dashboard', Icon: GridIcon },
     { id: 'transactions', label: 'Transactions', Icon: ListIcon },
     { id: 'breakdown', label: 'Breakdown', Icon: BarsIcon },
+    { id: 'subscriptions', label: 'Subscriptions', Icon: RepeatIcon },
     { id: 'quests', label: 'Quests', Icon: StarIcon },
     { id: 'achievements', label: 'Achievements', Icon: MedalIcon },
 ];
@@ -14,7 +15,7 @@ const NAV = [
 const Sidebar = () => {
     const {
         user, onLogout, view, setView, progress, quests,
-        monthTransactions, transactions,
+        monthTransactions, transactions, subscriptions,
     } = useAppState();
 
     // The streak is derived from the same history the server uses, so the sidebar and
@@ -44,6 +45,7 @@ const Sidebar = () => {
 
     const counts = {
         transactions: monthTransactions.length,
+        subscriptions: subscriptions.filter((s) => s.status === 'active').length,
         quests: quests.filter((q) => q.claimable).length,
         achievements: (progress?.achievements || []).filter((a) => a.earned).length,
     };

@@ -2,6 +2,8 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { deleteTransaction, getTransactions, getYearSummary } from '../api/transactions';
 import { getBudgets, toBudgetMap } from '../api/budgets';
 import { claimQuest, getProgress, getQuests } from '../api/progress';
+import { getSubscriptionStates, setSubscriptionCancelled, toCancelledKeys } from '../api/subscriptions';
+import { detectSubscriptions, monthlyTotal } from '../lib/subscriptions';
 import { periodKeyOf, summarize } from '../lib/money';
 
 const AppStateContext = createContext(null);
@@ -32,6 +34,7 @@ const emptyToast = { id: 0, title: '', sub: '', kind: '' };
 export const AppStateProvider = ({ children, user, onLogout }) => {
     const [transactions, setTransactions] = useState([]);
     const [budgets, setBudgets] = useState({});
+    const [cancelledSubscriptions, setCancelledSubscriptions] = useState([]);
     const [progress, setProgress] = useState(null);
     const [quests, setQuests] = useState([]);
     const [summary, setSummary] = useState([]);
@@ -67,15 +70,17 @@ export const AppStateProvider = ({ children, user, onLogout }) => {
         setLoading(true);
         setError('');
         try {
-            const [txns, budgetPayload, progressPayload] = await Promise.all([
+            const [txns, budgetPayload, progressPayload, subscriptionPayload] = await Promise.all([
                 getTransactions(),
                 getBudgets().catch(() => ({ budgets: [] })),
                 getProgress().catch(() => null),
+                getSubscriptionStates().catch(() => ({ cancelled: [] })),
             ]);
             const list = Array.isArray(txns) ? txns : [];
             setTransactions(list);
             setBudgets(toBudgetMap(budgetPayload));
             setProgress(progressPayload);
+            setCancelledSubscriptions(toCancelledKeys(subscriptionPayload));
             setPeriod((current) => (periodTouched ? current : pickInitialPeriod(list)));
         } catch (loadError) {
             setError(loadError.message || 'Failed to load your data');
@@ -113,6 +118,30 @@ export const AppStateProvider = ({ children, user, onLogout }) => {
         const key = `${y}-${String(m).padStart(2, '0')}`;
         return summarize(transactions.filter((t) => periodKeyOf(t.date) === key));
     }, [transactions, period]);
+
+    // Derived from the whole history rather than the selected month: a subscription
+    // is an ongoing commitment, not a property of one month.
+    const subscriptions = useMemo(
+        () => detectSubscriptions(transactions, { cancelledKeys: cancelledSubscriptions }),
+        [transactions, cancelledSubscriptions]
+    );
+
+    const subscriptionMonthlyTotal = useMemo(() => monthlyTotal(subscriptions), [subscriptions]);
+
+    const setSubscriptionCancelledState = useCallback(async (key, cancelled) => {
+        // Optimistic: the list re-derives from this immediately.
+        setCancelledSubscriptions((current) => (
+            cancelled ? [...new Set([...current, key])] : current.filter((k) => k !== key)
+        ));
+        try {
+            await setSubscriptionCancelled(key, cancelled);
+        } catch (error) {
+            setCancelledSubscriptions((current) => (
+                cancelled ? current.filter((k) => k !== key) : [...new Set([...current, key])]
+            ));
+            pushToast(cancelled ? 'Could not cancel' : 'Could not restore', error.message, '');
+        }
+    }, [pushToast]);
 
     const categories = useMemo(
         () => Array.from(new Set(transactions.map((t) => (t.category || 'Uncategorized').trim() || 'Uncategorized'))).sort(),
@@ -181,13 +210,15 @@ export const AppStateProvider = ({ children, user, onLogout }) => {
         user, onLogout,
         transactions, monthTransactions, categories, budgets, setBudgets,
         progress, quests, summary, totals, previousTotals,
+        subscriptions, subscriptionMonthlyTotal, setSubscriptionCancelled: setSubscriptionCancelledState,
         period, goToPeriod, stepPeriod, periodsWithData, latestPeriodWithData, year,
         view, setView, filters, setFilters, sort, setSort,
         loading, error, theme, setTheme,
         toasts, pushToast, claim, removeTransaction, reload: loadCore, refreshProgress,
     }), [
         user, onLogout, transactions, monthTransactions, categories, budgets, progress, quests,
-        summary, totals, previousTotals, period, goToPeriod, stepPeriod, periodsWithData,
+        summary, totals, previousTotals, subscriptions, subscriptionMonthlyTotal,
+        setSubscriptionCancelledState, period, goToPeriod, stepPeriod, periodsWithData,
         latestPeriodWithData, year, view, filters, sort, loading, error, theme, toasts,
         pushToast, claim, removeTransaction, loadCore, refreshProgress,
     ]);

@@ -5,6 +5,7 @@ const {
     normalizeChaseStatementText,
     normalizeCsvBuffer,
     normalizeSubmissionRow,
+    resolveType,
     suggestCategory,
 } = require('../lib/transactionImport');
 
@@ -178,4 +179,64 @@ test('suggests categories from common statement phrases', () => {
         suggestCategory('google play g.co helppay', 'expense'),
         'Subscription'
     );
+});
+
+test('imported subscriptions are typed subscription, not expense', () => {
+    const csv = [
+        'Date,Description,Amount',
+        '2026-03-01,Netflix Monthly,-15.99',
+        '2026-03-02,Recurring Card Purchase Openai ChatGPT Subscr,-21.62',
+        '2026-03-03,Coffee Shop,-6.25',
+    ].join('\n');
+
+    const rows = normalizeCsvBuffer(Buffer.from(csv));
+
+    // The importer derives direction from the amount's sign and could only ever
+    // produce 'expense'. A subscription category now promotes it.
+    assert.equal(rows[0].category, 'Subscription');
+    assert.equal(rows[0].type, 'subscription');
+    assert.equal(rows[1].category, 'Subscription');
+    assert.equal(rows[1].type, 'subscription');
+    // Everything else is untouched.
+    assert.equal(rows[2].type, 'expense');
+});
+
+test('an inflow is never promoted to subscription', () => {
+    const csv = [
+        'Date,Description,Amount',
+        // A refund from a subscription merchant is money coming in, not a charge.
+        '2026-03-01,Netflix Refund,15.99',
+    ].join('\n');
+
+    const rows = normalizeCsvBuffer(Buffer.from(csv));
+
+    assert.equal(rows[0].type, 'income');
+});
+
+test('resolveType only promotes outflows in a subscription category', () => {
+    assert.equal(resolveType('expense', 'Subscription'), 'subscription');
+    assert.equal(resolveType('expense', 'Streaming'), 'subscription');
+    assert.equal(resolveType('expense', 'Gym'), 'subscription');
+    assert.equal(resolveType('expense', 'Groceries'), 'expense');
+    assert.equal(resolveType('income', 'Subscription'), 'income');
+});
+
+test('a statement subscription is typed subscription', () => {
+    const statement = [
+        'CHECKING SUMMARY',
+        'Beginning Balance $1,000.00',
+        'TRANSACTION DETAIL',
+        '03/02 Recurring Card Purchase 03/01 Spotify USA 877-778-1161 NY Card 1234 11.99 988.01',
+        '03/05 Card Purchase 03/04 Trader Joes Card 1234 40.00 948.01',
+        'Ending Balance $948.01',
+        'through March 31, 2026',
+    ].join('\n');
+
+    const rows = normalizeChaseStatementText(statement);
+    const spotify = rows.find((r) => /spotify/i.test(r.name));
+    const groceries = rows.find((r) => /trader/i.test(r.name));
+
+    assert.equal(spotify.category, 'Subscription');
+    assert.equal(spotify.type, 'subscription');
+    assert.equal(groceries.type, 'expense');
 });
