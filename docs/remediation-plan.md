@@ -5,7 +5,9 @@ Companion to [frontend-rework-plan.md](frontend-rework-plan.md) — that documen
 the Budget Quest rework, this one covers what has to be true before its final step
 (flag flip, delete `Report.js`) is safe.
 
-**Status:** Phase 1 done. Phases 2–5 open.
+**Status:** Phase 1 done. Phase 2 part done (v2 boots; logged-in walkthrough
+outstanding). Phase 3 transaction editing done, PDF export parked, category
+breakdown open. Phases 4–5 open.
 
 ---
 
@@ -36,7 +38,7 @@ Verified as a drop-in before upgrading, against the exact call signature in
 - single-amount CSV and debit/credit CSV both parse to identical shapes
 - a `__proto__` header now lands as an own key and leaves `Object.prototype` untouched
 
-### Frontend: one real fix, 112 deliberately left
+### Frontend: 113 → 9
 
 `fflate@0.8.2` reaches the shipped bundle via `jspdf@4.2.1`. Pinned to `0.8.3`
 through the existing `overrides` block. The build output hash did not change
@@ -44,13 +46,42 @@ through the existing `overrides` block. The build output hash did not change
 path was tree-shaken out and never shipped — jsPDF writes PDFs, it does not read
 untrusted archives. The fix is still worth having; the exposure was not.
 
-**The remaining 112 advisories all trace to `react-scripts@5.0.1` build tooling**
-— postcss, svgo, webpack-dev-server, tailwind, ajv, js-yaml. `npm audit --omit=dev`
-does not filter them because CRA declares `react-scripts` under `dependencies`
-rather than `devDependencies`. None reach the bundle.
+**Two existing overrides had gone stale** — pinned to versions that later
+advisories cover. This is the important finding, because the `overrides` block
+*looked* like these were handled:
 
-**Do not chase these individually.** Each override risks the build for no runtime
-gain. The real fix is migrating off CRA — see Phase 5.
+| Override | Was | Vulnerable range | Now |
+|---|---|---|---|
+| `fast-uri` | 3.1.2 | `>= 3.1.2, < 3.1.6` — the pin sat inside it | 3.1.8 |
+| `postcss` | 8.5.8 | `<= 8.5.22` | 8.5.28 |
+
+Both pins were correct when written and were overtaken. Bumping just these two
+took the count from **112 to 13**, because everything in the `postcss-*` and `ajv`
+trees hangs off them.
+
+Four more were then pinned to the lowest patched version **in the same major
+line** — `body-parser@1.20.8`, `colord@2.9.4`, `express@4.22.3`, `qs@6.16.0` —
+taking 13 → 9. Pinning to `latest` would have forced express 5 and body-parser 2
+into webpack-dev-server; the minimum patched version in the installed major is
+the safe move.
+
+**The remaining 9 are genuinely stuck.** Seven report `react-scripts@0.0.0` as the
+fix, npm's way of saying no published version resolves them: `react-scripts`,
+`svgo`, `@svgr/webpack`, `@svgr/plugin-svgo`, `sockjs`, `uuid`,
+`webpack-dev-server`. The other two — `js-yaml` and `postcss-selector-parser` —
+have **two major lines installed at once** (3.x + 4.x, 6.x + 7.x), and a flat
+override forces one version on both consumers. js-yaml 4 dropped `safeLoad`, so
+that would break the 3.x consumer inside `svgo@1.3.2`. Both of those sit in the
+already-stuck svgo cluster, so scoping per-parent changes nothing about whether
+the badge is red.
+
+None of the 9 reach the bundle. `npm audit --omit=dev` does not filter them
+because CRA declares `react-scripts` under `dependencies` rather than
+`devDependencies`. The real fix is migrating off CRA — see Phase 5.
+
+**Lesson worth keeping:** a version pin in `overrides` is a point-in-time
+assertion, not a standing fix. Re-check the whole block against current
+advisories periodically rather than assuming a listed package is handled.
 
 ### Housekeeping
 
@@ -65,23 +96,32 @@ gain. The real fix is migrating off CRA — see Phase 5.
 | `node -e "require('./app')"` | ok |
 | `node -e "require('./api/[...path]')"` | ok |
 | `npm audit` (backend) | 0 vulnerabilities |
-| `CI=true npm test -- --watchAll=false` | 46/46 pass, 8 suites |
-| `npm run build` | compiles clean, 195.38 kB gzip |
+| `npm audit` (frontend) | 113 → 9, all build-tooling |
+| `CI=true npm test -- --watchAll=false` | 49/49 pass, 9 suites |
+| `npm run build` | compiles clean, 195.38 kB gzip, hash unchanged |
+| v2 boot in browser | shell + auth gate render, console clean |
 
 ---
 
-## Phase 2 — Actually run the v2 UI
+## Phase 2 — Actually run the v2 UI (part done)
 
-`REACT_APP_UI_V2` appears in [README.md](../README.md), in
+`REACT_APP_UI_V2` appeared in [README.md](../README.md), in
 [App.js](../finance-tracker-frontend/src/App.js) and in the rework plan, but in **no
-`.env` file anywhere**. The Budget Quest UI has never been run. Roughly 2,000 lines
-compile into every bundle unexercised.
+`.env` file anywhere**. Roughly 2,000 lines compiled into every bundle unexercised.
 
-- Set `REACT_APP_UI_V2=true` locally and click through every view.
-- Add it to `finance-tracker-frontend/.env.example`, commented, so it is discoverable.
+Done:
 
-The gap list in Phase 3 comes from reading the code. Running it will find more.
-**Nothing in Phase 3 or 4 should be scoped before this happens.**
+- `REACT_APP_UI_V2=true` added to the local (gitignored) `.env`, and documented
+  commented-out in `.env.example` so it is discoverable.
+- v2 boots. The shell mounts, the auth gate renders, and the browser console is
+  clean — only the expected 401s from the unauthenticated `/api/auth/me` check.
+  No compile errors, no React warnings.
+
+Still to do — **needs a signed-in session, so it is a human step**: click through
+Dashboard, Transactions, Quests and Achievements against real data. The Phase 3
+gap list came from reading the code; walking the logged-in views will very likely
+add to it. Expect layout problems in particular, since no view below the auth gate
+has ever been rendered against real transactions.
 
 ---
 
@@ -92,7 +132,7 @@ is not safe yet — v2 is missing three things v1 ships today.
 
 | Missing in v2 | Evidence | Cost |
 |---|---|---|
-| **Transaction editing** | [AppShell.js:105](../finance-tracker-frontend/src/components/shell/AppShell.js) hardcodes `editingTransaction={null}`; `TransactionsView` renders delete but no edit | Low — `AddTransaction` already supports edit mode and `updateTransaction` already exists in the API client. Purely unwired. |
+| ~~**Transaction editing**~~ — **done** | `AppShell` now holds the transaction under edit and passes it through; `TransactionsView` has an edit button beside delete | Was low, as predicted — `AddTransaction` already supported edit mode and `updateTransaction` already existed. See below. |
 | **PDF export** | `jspdf` is imported by `Report.js` and nothing else | Medium — a real port. Listed as a core feature in the README. |
 | **Monthly category breakdown** | `MonthlyReportSection`, `MonthlySummaryCards` and `getMonthlyReport` have `Report.js` as their only consumer | Medium — DashboardView's budget bars and net-by-month chart overlap the summary cards, but the income-vs-outflow category split has no v2 equivalent. |
 
@@ -100,9 +140,28 @@ Deleting `Report.js` without porting these is a straight feature regression. It 
 orphans those three components, the `getMonthlyReport` client, and possibly the
 backend `/api/transactions/report/:year/:month` endpoint.
 
-**Open decision:** port all three, or drop some deliberately? PDF export is the
-expensive one and the answer depends on whether it is actually used or mainly a
-portfolio feature.
+**Decision taken 2026-09-20:** PDF export is parked for now. Transaction editing is
+done. The monthly category breakdown is still open.
+
+### Transaction editing, as wired
+
+- `AppShell` holds `editing` alongside `adding`; `openAdd` clears it, `openEdit`
+  sets it, `closeForm` resets both. The modal's `aria-label` switches between
+  "Add transaction" and "Edit transaction".
+- `AddTransaction` already returned `onSaved(data, mode)`, so the toast now reads
+  "Transaction updated" or "Transaction saved" off `mode`.
+- `TransactionsView` takes an `onEdit` prop and renders a `PencilIcon` button
+  before the delete button. `.bq-ract` already had `gap: 5px` and was clearly
+  built for more than one action.
+- `.bq-mini:hover` used to turn red for every mini button. Red now lives on
+  `.bq-mini.del:hover` only, so the destructive colour means something.
+- Covered by `src/views/TransactionsView.test.js` — the first v2 component test.
+  It asserts `onEdit` receives the **whole transaction object** (AddTransaction
+  reads name/type/category/amount off it), that delete still removes by id, and
+  that the `_id`/`id` fallback holds.
+
+Not wired: the Dashboard's "Recent activity" rows are still read-only. That was a
+deliberate scope call — the transactions table is where v1 put the edit affordance.
 
 ---
 
@@ -140,9 +199,10 @@ Needed before cutover:
 | Step | Deliverable | Depends on | Status |
 |---|---|---|---|
 | 1 | Dependency patches + housekeeping | — | done |
-| 2 | Flag on locally, walk the v2 UI, widen the gap list | 1 | open |
-| 3 | Wire transaction editing into `TransactionsView` | 2 | open |
-| 4 | Port PDF export and category breakdown *(scope TBD)* | 2 | open |
+| 2 | Flag on locally, walk the v2 UI, widen the gap list | 1 | part done — needs a signed-in walkthrough |
+| 3 | Wire transaction editing into `TransactionsView` | 2 | done |
+| 4 | Port the category breakdown | 2 | open |
+| 4b | Port PDF export | 2 | parked |
 | 5 | v2 component tests replacing `Report.test.js` | 3, 4 | open |
 | 6 | Flip flag in Vercel, watch logs, then delete `Report.js`, `Report.test.js`, rewrite `App.test.js` | 5 | open |
 | 7 | Pagination; CRA migration | — | open |
@@ -158,7 +218,15 @@ Step 7 is independent and can run whenever.
 - **Deleting `Report.js` before Phase 4** leaves the app's main flows untested. The
   rework plan already warns `Report.test.js` is load-bearing; it is more load-bearing
   than that warning implies, because nothing was written to replace it.
-- **Chasing the 112 CRA advisories** with `overrides` risks breaking the build to fix
-  code that never ships.
+- **Overrides go stale silently.** Two pins in the block were sitting inside
+  vulnerable ranges while looking handled. Re-audit the whole `overrides` block
+  against current advisories rather than trusting that a listed package is fixed.
+- **Chasing the last 9 CRA advisories** is not worth it: seven have no published
+  fix short of leaving CRA, and two would force a single major on two consumers
+  that need different ones.
 - **`fflate` will drift again** — it is pinned by override, not by `jspdf`. Re-check
   it whenever `jspdf` is upgraded.
+- **v2 has still only been seen logged out.** Every conclusion about the
+  Dashboard, Transactions, Quests and Achievements views — including the Phase 3
+  gap list and the editing work above — rests on reading the code, not on seeing
+  it render against real data.

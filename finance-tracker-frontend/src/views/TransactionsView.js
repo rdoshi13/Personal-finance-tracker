@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { useAppState } from '../state/AppStateContext';
 import { categoryColor } from '../lib/categoryColor';
 import { isIncome, money, summarize } from '../lib/money';
-import { PlusIcon, TrashIcon } from '../components/shell/icons';
+import { PencilIcon, PlusIcon, TrashIcon } from '../components/shell/icons';
 
 const COLUMNS = [
     { key: 'date', label: 'Date', sortable: true },
@@ -12,7 +12,7 @@ const COLUMNS = [
     { key: 'amount', label: 'Amount', sortable: true, right: true },
 ];
 
-const TransactionsView = ({ onAdd }) => {
+const TransactionsView = ({ onAdd, onEdit }) => {
     const {
         monthTransactions, categories, filters, setFilters, sort, setSort, removeTransaction,
     } = useAppState();
@@ -161,6 +161,14 @@ const TransactionsView = ({ onAdd }) => {
                                             <button
                                                 type="button"
                                                 className="bq-mini"
+                                                aria-label={`Edit ${t.name}`}
+                                                onClick={() => onEdit(t)}
+                                            >
+                                                <PencilIcon size={11} strokeWidth="2.2" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="bq-mini del"
                                                 aria-label={`Delete ${t.name}`}
                                                 onClick={() => removeTransaction(id)}
                                             >
