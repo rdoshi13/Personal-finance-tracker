@@ -60,17 +60,20 @@ const TransactionSchema = new mongoose.Schema({
 
 // Keyset pagination sorts on (date desc, _id desc); without _id in the index Mongo
 // falls back to a blocking in-memory sort, which has a 32MB ceiling.
-// Note: the older { userId: 1, date: -1 } index is not dropped automatically and
-// can be removed by hand once this is deployed.
+// Note: changing this does not change the database. Run `npm run indexes:reconcile`
+// against each environment -- autoIndex does not reliably complete on Vercel.
 TransactionSchema.index({ userId: 1, date: -1, _id: -1 });
 TransactionSchema.index(
     { userId: 1, importHash: 1 },
     {
         unique: true,
+        // markDuplicateRows() in transactionRoutes already skips hashes it finds,
+        // so this index is the backstop for the gap between that read and the
+        // insert -- two concurrent imports of one file otherwise both pass it.
         // $gt: '' rather than $ne: '' -- MongoDB rejects $ne in a partial filter
-        // ($ne desugars to $not, which is unsupported), so the declaration silently
-        // failed to create on a fresh database and imports lost their dedupe
-        // guarantee. For strings '' is the minimum, so $gt: '' means non-empty.
+        // ($ne desugars to $not, which is unsupported), so the declaration
+        // silently failed to create and the backstop was never actually there.
+        // For strings '' is the minimum, so $gt: '' means non-empty.
         partialFilterExpression: { importHash: { $exists: true, $type: 'string', $gt: '' } },
     }
 );
