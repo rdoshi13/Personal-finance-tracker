@@ -44,6 +44,7 @@ export const FlameIcon = (p) => <Icon {...p} d="M12 3s5 4.5 5 9a5 5 0 01-10 0c0-
 export const TrashIcon = (p) => <Icon {...p} d="M5 7h14M10 7V5h4v2m-7 0l1 13h8l1-13" />;
 export const PencilIcon = (p) => <Icon {...p} d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z" />;
 export const BarsIcon = (p) => <Icon {...p} d="M5 20V10m7 10V4m7 16v-7" />;
+export const ChevronIcon = (p) => <Icon {...p} d="M9 6l6 6-6 6" />;
 export const RepeatIcon = (p) => (
     <Icon {...p}><path d="M4 11a7 7 0 0 1 12-4.9L19 9" /><path d="M19 4v5h-5" /><path d="M20 13a7 7 0 0 1-12 4.9L5 15" /><path d="M5 20v-5h5" /></Icon>
 );

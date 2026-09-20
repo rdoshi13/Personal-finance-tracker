@@ -22,6 +22,11 @@ const sub = (overrides = {}) => ({
     confidence: 'high',
     monthlyCost: 11.99,
     charges: 3,
+    history: [
+        { date: new Date('2026-05-01T12:00:00.000Z'), amount: 11.99, category: 'Streaming' },
+        { date: new Date('2026-04-01T12:00:00.000Z'), amount: 11.99, category: 'Streaming' },
+        { date: new Date('2026-03-01T12:00:00.000Z'), amount: 9.99, category: 'Streaming' },
+    ],
     firstCharged: new Date('2026-03-01T12:00:00.000Z'),
     lastCharged: new Date('2026-05-01T12:00:00.000Z'),
     nextExpected: new Date('2026-05-31T12:00:00.000Z'),
@@ -151,5 +156,77 @@ describe('SubscriptionsView', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Add a transaction' }));
         expect(onAdd).toHaveBeenCalled();
+    });
+
+    test('charges are hidden until the row is expanded', () => {
+        render(<SubscriptionsView onAdd={jest.fn()} />);
+
+        expect(screen.queryByText('1 Apr 2026')).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Show charges for Spotify' }))
+            .toHaveAttribute('aria-expanded', 'false');
+    });
+
+    test('expanding lists every charge with its date and amount, newest first', () => {
+        render(<SubscriptionsView onAdd={jest.fn()} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Show charges for Spotify' }));
+
+        const history = document.querySelector('.bq-subh');
+        const rows = [...history.querySelectorAll('.bq-subhr')].map((r) => r.textContent);
+        expect(rows).toHaveLength(3);
+        expect(rows[0]).toContain('1 May 2026');
+        expect(rows[0]).toContain('$11.99');
+        expect(rows[2]).toContain('1 Mar 2026');
+        // The price rise is visible in the history even though the row shows the latest.
+        expect(rows[2]).toContain('$9.99');
+    });
+
+    test('the gap between consecutive charges is shown', () => {
+        render(<SubscriptionsView onAdd={jest.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Show charges for Spotify' }));
+
+        // 1 Apr -> 1 May is 30 days; the oldest row has nothing before it.
+        expect(screen.getByText('30d later')).toBeInTheDocument();
+        expect(screen.getAllByText(/d later$/)).toHaveLength(2);
+    });
+
+    test('the toggle reports and flips its expanded state', () => {
+        render(<SubscriptionsView onAdd={jest.fn()} />);
+        const toggle = () => screen.getByRole('button', { name: /charges for Spotify/ });
+
+        fireEvent.click(toggle());
+        expect(toggle()).toHaveAttribute('aria-expanded', 'true');
+        expect(toggle()).toHaveAccessibleName('Hide charges for Spotify');
+
+        fireEvent.click(toggle());
+        expect(toggle()).toHaveAttribute('aria-expanded', 'false');
+        expect(document.querySelector('.bq-subh')).not.toBeInTheDocument();
+    });
+
+    test('rows expand independently of each other', () => {
+        mockState.subscriptions = [
+            sub(),
+            sub({ key: 'notion', name: 'Notion', history: [{ date: new Date('2026-05-02T12:00:00.000Z'), amount: 8, category: 'Software' }], charges: 1 }),
+        ];
+        render(<SubscriptionsView onAdd={jest.fn()} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Show charges for Notion' }));
+
+        expect(document.querySelectorAll('.bq-subh')).toHaveLength(1);
+        expect(screen.getByRole('button', { name: 'Show charges for Spotify' }))
+            .toHaveAttribute('aria-expanded', 'false');
+    });
+
+    test('a one-charge subscription expands without a gap label', () => {
+        mockState.subscriptions = [sub({
+            cadence: 'unknown', charges: 1, nextExpected: null,
+            history: [{ date: new Date('2026-05-15T12:00:00.000Z'), amount: 25, category: 'Subscription' }],
+        })];
+        render(<SubscriptionsView onAdd={jest.fn()} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Show charges for Spotify' }));
+
+        expect(document.querySelectorAll('.bq-subhr')).toHaveLength(1);
+        expect(screen.queryByText(/d later$/)).not.toBeInTheDocument();
     });
 });

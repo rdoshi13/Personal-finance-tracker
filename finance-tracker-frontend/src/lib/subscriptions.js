@@ -119,6 +119,13 @@ const detectSubscriptions = (transactions = [], options = {}) => {
             && (now - latest.date) / DAY_MS > periodDays * 2;
 
         rows.push({
+            // Newest first: the charge you are most likely asking about is the
+            // last one, and it is what `amount` and `lastCharged` describe.
+            history: [...charges].reverse().map((c) => ({
+                date: c.date,
+                amount: c.amount,
+                category: c.category,
+            })),
             key,
             name: latest.name,
             category: latest.category,

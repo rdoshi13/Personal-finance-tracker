@@ -38,8 +38,41 @@ const requestJson = async (path, options = {}, fallbackError = 'Request failed')
     return data;
 };
 
-const getTransactions = async () =>
-    requestJson('/api/transactions', {}, 'Failed to fetch transactions');
+const PAGE_SIZE = 250;
+// 100 pages is 25,000 transactions. Past that the client should not be holding
+// the whole history in memory anyway -- see getTransactionsPage.
+const MAX_PAGES = 100;
+
+/** One page, for callers that want to drive paging themselves. */
+const getTransactionsPage = async ({ limit = PAGE_SIZE, cursor } = {}) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor) params.set('cursor', cursor);
+
+    return requestJson(`/api/transactions?${params}`, {}, 'Failed to fetch transactions');
+};
+
+/**
+ * Every view derives from the full history -- subscriptions, the saving streak,
+ * the category list and which months hold data are all all-time -- so this walks
+ * the pages and returns one array. The endpoint is paginated so no single
+ * response is unbounded; bounding what the client *holds* needs those aggregates
+ * served separately, which is a larger change.
+ */
+const getTransactions = async () => {
+    const all = [];
+    let cursor;
+
+    for (let page = 0; page < MAX_PAGES; page += 1) {
+        // eslint-disable-next-line no-await-in-loop -- each page needs the previous cursor
+        const data = await getTransactionsPage({ cursor });
+        all.push(...(data?.transactions || []));
+
+        if (!data?.hasMore || !data?.nextCursor) return all;
+        cursor = data.nextCursor;
+    }
+
+    return all;
+};
 
 const getYearSummary = async (year) =>
     requestJson(`/api/transactions/summary?year=${year}`, {}, 'Failed to fetch summary');
@@ -138,6 +171,7 @@ export {
     createTransaction,
     deleteTransaction,
     getTransactions,
+    getTransactionsPage,
     getYearSummary,
     importTransactions,
     previewTransactionImport,

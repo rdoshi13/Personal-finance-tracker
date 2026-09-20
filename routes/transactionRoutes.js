@@ -270,13 +270,68 @@ router.post('/', async (req, res) => {
     }
 });
 
-// Read all transactions
+const DEFAULT_PAGE_SIZE = 250;
+const MAX_PAGE_SIZE = 1000;
+
+// Keyset rather than skip/limit. With skip, a row added or removed mid-scroll
+// shifts every later page, so the client silently repeats or misses rows. The
+// cursor is the sort key of the last row returned: (date, _id).
+const encodeCursor = (transaction) =>
+    Buffer.from(`${transaction.date.toISOString()}|${transaction._id}`).toString('base64url');
+
+const decodeCursor = (raw) => {
+    const [datePart, idPart] = Buffer.from(String(raw), 'base64url').toString('utf8').split('|');
+    const date = new Date(datePart);
+
+    if (Number.isNaN(date.getTime()) || !mongoose.Types.ObjectId.isValid(idPart)) {
+        const error = new Error('Invalid cursor');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    return { date, id: new mongoose.Types.ObjectId(idPart) };
+};
+
+const parseLimit = (raw) => {
+    if (raw === undefined) return DEFAULT_PAGE_SIZE;
+    const limit = Number(raw);
+
+    if (!Number.isInteger(limit) || limit < 1) {
+        const error = new Error('limit must be a positive integer');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    return Math.min(limit, MAX_PAGE_SIZE);
+};
+
+// Read a page of transactions, newest first.
 router.get('/', async (req, res) => {
     try {
-        const transactions = await Transaction.find({ userId: req.user.id }).sort({ date: -1 });
-        res.json(transactions);
+        const limit = parseLimit(req.query.limit);
+        const filter = { userId: req.user.id };
+
+        if (req.query.cursor) {
+            const cursor = decodeCursor(req.query.cursor);
+            // Strictly after the cursor in (date desc, _id desc) order.
+            filter.$or = [
+                { date: { $lt: cursor.date } },
+                { date: cursor.date, _id: { $lt: cursor.id } },
+            ];
+        }
+
+        // One extra row tells us whether another page exists without a count query.
+        const rows = await Transaction.find(filter).sort({ date: -1, _id: -1 }).limit(limit + 1);
+        const hasMore = rows.length > limit;
+        const transactions = hasMore ? rows.slice(0, limit) : rows;
+
+        res.json({
+            transactions,
+            hasMore,
+            nextCursor: hasMore ? encodeCursor(transactions[transactions.length - 1]) : null,
+        });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        res.status(err.statusCode || 500).json({ message: err.message });
     }
 });
 
