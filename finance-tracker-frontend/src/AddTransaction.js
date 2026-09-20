@@ -7,7 +7,16 @@ const CATEGORY_OPTIONS = {
     subscription: ['Subscription', 'Streaming', 'Software', 'Utilities', 'Cloud', 'Gym', 'Membership', 'Misc'],
 };
 
-const getCategoryOptions = (type) => CATEGORY_OPTIONS[type] || ['Misc'];
+// An imported transaction can carry a category that is not in its type's list: the
+// statement importer tags recurring card charges 'Subscription' while typing them
+// 'expense', and a refund from a shop becomes 'income' + 'Groceries'. Surface the
+// stored value as a selectable option rather than silently rewriting it to the
+// default, which turned opening the edit form into a data-loss risk.
+const getCategoryOptions = (type, currentCategory) => {
+    const options = CATEGORY_OPTIONS[type] || ['Misc'];
+    const current = String(currentCategory || '').trim();
+    return current && !options.includes(current) ? [current, ...options] : options;
+};
 const getDefaultCategory = (type) => {
     const options = getCategoryOptions(type);
     return options[options.length - 1];
@@ -32,16 +41,12 @@ const AddTransaction = ({ onSaved, onCancel, editingTransaction }) => {
     useEffect(() => {
         if (isEditMode) {
             const incomingType = editingTransaction.type || 'expense';
-            const availableCategories = getCategoryOptions(incomingType);
-            const incomingCategory = editingTransaction.category || '';
-            const normalizedCategory = availableCategories.includes(incomingCategory)
-                ? incomingCategory
-                : getDefaultCategory(incomingType);
+            const incomingCategory = String(editingTransaction.category || '').trim();
 
             setTransaction({
                 type: incomingType,
                 name: editingTransaction.name || '',
-                category: normalizedCategory,
+                category: incomingCategory || getDefaultCategory(incomingType),
                 amount: String(editingTransaction.amount ?? ''),
                 description: editingTransaction.description || '',
             });
@@ -74,7 +79,7 @@ const AddTransaction = ({ onSaved, onCancel, editingTransaction }) => {
         }));
     };
 
-    const categoryOptions = getCategoryOptions(transaction.type);
+    const categoryOptions = getCategoryOptions(transaction.type, transaction.category);
 
     // Handle form submission
     const handleSubmit = async (e) => {
