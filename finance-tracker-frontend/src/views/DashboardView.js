@@ -3,7 +3,7 @@ import { useAppState } from '../state/AppStateContext';
 import useCountUp from '../hooks/useCountUp';
 import useGrowIn from '../hooks/useGrowIn';
 import { categoryColor } from '../lib/categoryColor';
-import { initialsOf, money, periodLabel, spendByCategory } from '../lib/money';
+import { initialsOf, isOverBy, money, periodLabel, spendByCategory, sumMoney } from '../lib/money';
 import QuestCard from '../components/game/QuestCard';
 import { CalendarIcon, StarIcon } from '../components/shell/icons';
 
@@ -171,7 +171,8 @@ const DashboardView = ({ onAdd }) => {
                     <div className="bq-pb">
                         {sortedSpend.length ? sortedSpend.map(([category, value], index) => {
                             const cap = budgets[category] || 0;
-                            const over = cap > 0 && value > cap;
+                            // Cent precision: spending exactly your cap is not over it.
+                            const over = cap > 0 && isOverBy(value, cap);
                             const width = cap > 0
                                 ? Math.min(100, (value / cap) * 100)
                                 : (value / (sortedSpend[0][1] || 1)) * 100;
@@ -266,7 +267,7 @@ const DashboardView = ({ onAdd }) => {
                 </div>
                 <div className="bq-pb" style={{ paddingTop: 2 }}>
                     {dayGroups.map(([day, items]) => {
-                        const dayNet = items.reduce((acc, t) => acc + (t.type === 'income' ? Number(t.amount) : -Number(t.amount)), 0);
+                        const dayNet = sumMoney(items.map((t) => (t.type === 'income' ? Number(t.amount) : -Number(t.amount))));
                         return (
                             <div key={day}>
                                 <div className="bq-dayh">

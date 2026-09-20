@@ -1,3 +1,5 @@
+import { roundMoney, sumMoney } from './money';
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 const AVG_MONTH_DAYS = 30.44;
 
@@ -5,12 +7,18 @@ const AVG_MONTH_DAYS = 30.44;
 // use different module systems, so the list cannot be shared.
 const SUBSCRIPTION_CATEGORIES = ['Subscription', 'Streaming', 'Software', 'Cloud', 'Gym', 'Membership'];
 
+// `days` drives cadence *detection* from the gaps between charges. `perYear` drives
+// cost *normalisation*, and is a calendar count rather than a day ratio: an annual
+// plan is exactly a twelfth per month, where 365.25/30.44 gives 12.0098 and turns
+// $120 a year into $120.01.
 const CADENCES = [
-    { cadence: 'weekly', days: 7 },
-    { cadence: 'monthly', days: AVG_MONTH_DAYS },
-    { cadence: 'quarterly', days: AVG_MONTH_DAYS * 3 },
-    { cadence: 'yearly', days: 365.25 },
+    { cadence: 'weekly', days: 7, perYear: 52 },
+    { cadence: 'monthly', days: AVG_MONTH_DAYS, perYear: 12 },
+    { cadence: 'quarterly', days: AVG_MONTH_DAYS * 3, perYear: 4 },
+    { cadence: 'yearly', days: 365.25, perYear: 1 },
 ];
+
+const PER_YEAR = CADENCES.reduce((acc, c) => ({ ...acc, [c.cadence]: c.perYear }), {});
 
 const CADENCE_DAYS = CADENCES.reduce((acc, c) => ({ ...acc, [c.cadence]: c.days }), {});
 
@@ -67,8 +75,18 @@ const inferCadence = (gapsInDays) => {
         : { cadence: best.cadence, days: best.days };
 };
 
-const normaliseToMonthly = (amount, periodDays) =>
-    periodDays ? amount * (AVG_MONTH_DAYS / periodDays) : amount;
+/**
+ * What one charge works out to per month. Calendar-based for the known cadences;
+ * an irregular run falls back to its observed day spacing, which is the only
+ * thing available. An unknown cadence is counted at face value -- treating a
+ * single charge as monthly is the conservative reading, and the UI labels it.
+ */
+const normaliseToMonthly = (amount, cadence, periodDays) => {
+    const perYear = PER_YEAR[cadence];
+    if (perYear) return roundMoney(amount * (perYear / 12));
+    if (cadence === 'irregular' && periodDays) return roundMoney(amount * (AVG_MONTH_DAYS / periodDays));
+    return roundMoney(amount);
+};
 
 /**
  * @param {Array}  transactions  every transaction, not just one month's
@@ -134,7 +152,7 @@ const detectSubscriptions = (transactions = [], options = {}) => {
             cadence,
             periodDays,
             confidence: charges.length >= 3 ? 'high' : 'low',
-            monthlyCost: isCancelled ? 0 : normaliseToMonthly(latest.amount, periodDays),
+            monthlyCost: isCancelled ? 0 : normaliseToMonthly(latest.amount, cadence, periodDays),
             charges: charges.length,
             firstCharged: first.date,
             lastCharged: latest.date,
@@ -151,13 +169,12 @@ const detectSubscriptions = (transactions = [], options = {}) => {
 
 /** Only active subscriptions count toward what you are committed to per month. */
 const monthlyTotal = (subscriptions = []) =>
-    subscriptions
-        .filter((s) => s.status === 'active')
-        .reduce((acc, s) => acc + s.monthlyCost, 0);
+    sumMoney(subscriptions.filter((s) => s.status === 'active').map((s) => s.monthlyCost));
 
 export {
     AVG_MONTH_DAYS,
     CADENCE_DAYS,
+    PER_YEAR,
     SUBSCRIPTION_CATEGORIES,
     detectSubscriptions,
     inferCadence,

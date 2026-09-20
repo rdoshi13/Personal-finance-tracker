@@ -165,3 +165,39 @@ test('achievements unlock from history', () => {
         'saving over $1,000 in a month unlocks Big Saver'
     );
 });
+
+test('quest aggregates do not drift on awkward amounts', () => {
+    const rows = [
+        { type: 'income', category: 'Salary', amount: 0.1, date: '2026-05-01' },
+        { type: 'income', category: 'Salary', amount: 0.2, date: '2026-05-02' },
+        { type: 'expense', category: 'Food', amount: 0.1, date: '2026-05-03' },
+        { type: 'expense', category: 'Food', amount: 0.2, date: '2026-05-04' },
+    ];
+
+    const summary = summarize(rows);
+    assert.equal(summary.income, 0.3);
+    assert.equal(summary.expense, 0.3);
+    assert.equal(summary.net, 0);
+    assert.equal(spendByCategory(rows).Food, 0.3);
+});
+
+test('a category spent exactly to its cap counts as within budget', () => {
+    // 0.1 + 0.2 is 0.30000000000000004 as plain floats, which read as over.
+    const rows = [
+        { type: 'expense', category: 'Food', amount: 0.1, date: '2026-05-01' },
+        { type: 'expense', category: 'Food', amount: 0.2, date: '2026-05-02' },
+    ];
+
+    const hero = evaluateQuests(rows, { Food: 0.3 }).find((q) => q.id === 'budget-hero');
+
+    assert.equal(hero.done, true, 'meeting a cap to the penny is not exceeding it');
+    assert.equal(hero.value, 1);
+});
+
+test('a category a cent over its cap is still caught', () => {
+    const rows = [{ type: 'expense', category: 'Food', amount: 300.01, date: '2026-05-01' }];
+
+    const hero = evaluateQuests(rows, { Food: 300 }).find((q) => q.id === 'budget-hero');
+
+    assert.equal(hero.done, false);
+});
