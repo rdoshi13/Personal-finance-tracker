@@ -45,6 +45,9 @@
 
 /* grids */
 .bq-g2 { display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; margin-bottom: 14px; }
+/* Income and outflow are peers, so they get equal width rather than .bq-g2's split. */
+.bq-g2e { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.bq-share { font-size: 10.5px; font-weight: 600; color: var(--ink-3); background: var(--panel-3); border-radius: 20px; padding: 1px 7px; }
 
 /* budget bars */
 .bq-cat { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: baseline; padding: 9px 6px; border-radius: 9px; transition: background 180ms ease; }
@@ -196,7 +199,7 @@
 .bq-palit .ps { font-size: 11px; color: var(--ink-3); }
 
 @media (max-width: 1080px) {
-  .bq-hero, .bq-g2 { grid-template-columns: 1fr; }
+  .bq-hero, .bq-g2, .bq-g2e { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
   .bq-tdesc { display: none; }

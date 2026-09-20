@@ -6,6 +6,7 @@ import { MoonIcon, PlusIcon, SearchIcon, SunIcon, UploadIcon } from './icons';
 const TITLES = {
     dashboard: 'Dashboard',
     transactions: 'Transactions',
+    breakdown: 'Breakdown',
     quests: 'Quests',
     achievements: 'Achievements',
 };

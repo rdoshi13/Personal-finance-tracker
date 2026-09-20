@@ -5,8 +5,8 @@ Companion to [frontend-rework-plan.md](frontend-rework-plan.md) — that documen
 the Budget Quest rework, this one covers what has to be true before its final step
 (flag flip, delete `Report.js`) is safe.
 
-**Status:** Phases 1 and 2 done. Phase 3 transaction editing done, PDF export
-parked, category breakdown open. Phases 4–5 open.
+**Status:** Phases 1 and 2 done. Phase 3 done apart from PDF export, which is
+parked by decision. Phases 4–5 open.
 
 ---
 
@@ -181,14 +181,15 @@ is not safe yet — v2 is missing three things v1 ships today.
 |---|---|---|
 | ~~**Transaction editing**~~ — **done** | `AppShell` now holds the transaction under edit and passes it through; `TransactionsView` has an edit button beside delete | Was low, as predicted — `AddTransaction` already supported edit mode and `updateTransaction` already existed. See below. |
 | **PDF export** | `jspdf` is imported by `Report.js` and nothing else | Medium — a real port. Listed as a core feature in the README. |
-| **Monthly category breakdown** | `MonthlyReportSection`, `MonthlySummaryCards` and `getMonthlyReport` have `Report.js` as their only consumer | Medium — DashboardView's budget bars and net-by-month chart overlap the summary cards, but the income-vs-outflow category split has no v2 equivalent. |
+| ~~**Monthly category breakdown**~~ — **done** | Now a `Breakdown` view: money in and money out, each by category with share, amount and transaction count | Built from `monthTransactions`, which the app already holds, so it costs no extra request. See below. |
 
 Deleting `Report.js` without porting these is a straight feature regression. It also
 orphans those three components, the `getMonthlyReport` client, and possibly the
 backend `/api/transactions/report/:year/:month` endpoint.
 
-**Decision taken 2026-09-20:** PDF export is parked for now. Transaction editing is
-done. The monthly category breakdown is still open.
+**Decision taken 2026-09-20:** PDF export is parked. Transaction editing and the
+monthly category breakdown are both done, so PDF export is the only thing left
+between v2 and parity.
 
 ### Transaction editing, as wired
 
@@ -209,6 +210,30 @@ done. The monthly category breakdown is still open.
 
 Not wired: the Dashboard's "Recent activity" rows are still read-only. That was a
 deliberate scope call — the transactions table is where v1 put the edit affordance.
+
+### The Breakdown view
+
+A new month-scoped view between Transactions and Quests, replacing what v1 split
+across `MonthlyReportSection` and `MonthlySummaryCards`.
+
+- **Computed client-side** from `monthTransactions` via a new `categoryBreakdown`
+  in `lib/money.js`. The app already loads every transaction, so this costs no
+  extra request and cannot drift from the figures beside it — the panel totals
+  match the Dashboard hero's In and Out exactly. v1's
+  `/api/transactions/report/:year/:month` is untouched and still serves `Report.js`.
+- **Share is of that side's own total**, so income and outflow each sum to 100%.
+  Comparing a category against the other side's total would be meaningless.
+- **Bars are scaled against the largest row on their own side**, so the biggest
+  category fills its track; the exact proportion is carried by the share pill,
+  which stays readable when one category dwarfs the rest.
+- Reuses the Dashboard's budget-bar row markup and `categoryColor`, so a category
+  is the same colour in both places.
+- Subscriptions count as outflow, matching `summarize()` and the server.
+
+Worth noting what it exposes: on the test data, `Groceries` appears on **both**
+sides — $13.58 in and $64.77 out — because shop refunds import as income. That is
+the same importer behaviour behind the category bug above, and splitting by
+direction is what makes it visible.
 
 ---
 
@@ -248,7 +273,7 @@ Needed before cutover:
 | 1 | Dependency patches + housekeeping | — | done |
 | 2 | Flag on locally, walk the v2 UI, widen the gap list | 1 | done |
 | 3 | Wire transaction editing into `TransactionsView` | 2 | done |
-| 4 | Port the category breakdown | 2 | open |
+| 4 | Port the category breakdown | 2 | done |
 | 4b | Port PDF export | 2 | parked |
 | 5 | v2 component tests replacing `Report.test.js` | 3, 4 | open |
 | 6 | Flip flag in Vercel, watch logs, then delete `Report.js`, `Report.test.js`, rewrite `App.test.js` | 5 | open |

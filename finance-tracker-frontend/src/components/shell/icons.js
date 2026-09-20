@@ -43,6 +43,7 @@ export const MedalIcon = (p) => (
 export const FlameIcon = (p) => <Icon {...p} d="M12 3s5 4.5 5 9a5 5 0 01-10 0c0-1.5.6-2.8 1.4-3.8C9 10.5 12 8 12 3z" />;
 export const TrashIcon = (p) => <Icon {...p} d="M5 7h14M10 7V5h4v2m-7 0l1 13h8l1-13" />;
 export const PencilIcon = (p) => <Icon {...p} d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z" />;
+export const BarsIcon = (p) => <Icon {...p} d="M5 20V10m7 10V4m7 16v-7" />;
 export const CheckIcon = (p) => <Icon {...p} d="M4 12l6 6L20 6" />;
 export const ClockIcon = (p) => (
     <Icon {...p}><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></Icon>

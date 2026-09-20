@@ -1,4 +1,4 @@
-import { initialsOf, isIncome, isOutflow, money, periodKeyOf, periodLabel, signedMoney, spendByCategory, summarize } from './money';
+import { initialsOf, isIncome, isOutflow, money, periodKeyOf, periodLabel, signedMoney, spendByCategory, summarize, categoryBreakdown } from './money';
 
 const tx = (date, type, amount, category = 'Misc') => ({ date, type, amount, category });
 
@@ -54,5 +54,55 @@ describe('money helpers', () => {
         expect(initialsOf('Walmart')).toBe('W');
         expect(initialsOf('Payroll deposit')).toBe('PD');
         expect(initialsOf('Trader Joes Market')).toBe('TJ');
+    });
+});
+
+describe('categoryBreakdown', () => {
+    const txns = [
+        { type: 'income', category: 'Salary', amount: 3000 },
+        { type: 'income', category: 'Interest', amount: 1000 },
+        { type: 'expense', category: 'Groceries', amount: 120 },
+        { type: 'expense', category: 'Groceries', amount: 80 },
+        // Subscriptions are outflow, the same as the server treats them.
+        { type: 'subscription', category: 'Streaming', amount: 100 },
+        { type: 'transfer', category: 'Ignored', amount: 999 },
+    ];
+
+    test('splits by direction, sorts by size and counts rows', () => {
+        const { income, outflow } = categoryBreakdown(txns);
+
+        expect(income.map((r) => r.category)).toEqual(['Salary', 'Interest']);
+        expect(outflow.map((r) => r.category)).toEqual(['Groceries', 'Streaming']);
+        expect(outflow[0]).toMatchObject({ total: 200, count: 2 });
+    });
+
+    test('share is of that side alone, so each side sums to 1', () => {
+        const { income, outflow } = categoryBreakdown(txns);
+
+        expect(income[0].share).toBeCloseTo(0.75);
+        expect(outflow[0].share).toBeCloseTo(200 / 300);
+        [income, outflow].forEach((side) => {
+            expect(side.reduce((acc, r) => acc + r.share, 0)).toBeCloseTo(1);
+        });
+    });
+
+    test('a type that is neither income nor outflow is left out', () => {
+        const all = categoryBreakdown(txns);
+        const names = [...all.income, ...all.outflow].map((r) => r.category);
+        expect(names).not.toContain('Ignored');
+    });
+
+    test('blank and missing categories fall back to Uncategorized', () => {
+        const { outflow } = categoryBreakdown([
+            { type: 'expense', category: '   ', amount: 10 },
+            { type: 'expense', amount: 5 },
+        ]);
+        expect(outflow).toHaveLength(1);
+        expect(outflow[0]).toMatchObject({ category: 'Uncategorized', total: 15, count: 2 });
+    });
+
+    test('no transactions yields empty sides rather than NaN shares', () => {
+        expect(categoryBreakdown([])).toEqual({ income: [], outflow: [] });
+        expect(categoryBreakdown()).toEqual({ income: [], outflow: [] });
     });
 });

@@ -8,6 +8,7 @@ import Toasts from './Toasts';
 import CommandPalette from '../CommandPalette';
 import DashboardView from '../../views/DashboardView';
 import TransactionsView from '../../views/TransactionsView';
+import BreakdownView from '../../views/BreakdownView';
 import QuestsView from '../../views/QuestsView';
 import AchievementsView from '../../views/AchievementsView';
 import AddTransaction from '../../AddTransaction';
@@ -98,6 +99,7 @@ const AppShell = () => {
                         <>
                             {view === 'dashboard' && <DashboardView onAdd={openAdd} />}
                             {view === 'transactions' && <TransactionsView onAdd={openAdd} onEdit={openEdit} />}
+                            {view === 'breakdown' && <BreakdownView onAdd={openAdd} />}
                             {view === 'quests' && <QuestsView />}
                             {view === 'achievements' && <AchievementsView />}
                         </>
