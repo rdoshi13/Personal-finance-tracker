@@ -1,9 +1,10 @@
 import React from 'react';
-import { useAppState } from '../../state/AppStateContext';
+import { isMonthScopedView, useAppState } from '../../state/AppStateContext';
 import { money, periodLabel } from '../../lib/money';
 
 const StatusBar = () => {
-    const { totals, period, loading } = useAppState();
+    const { totals, period, loading, view, transactions } = useAppState();
+    const monthScoped = isMonthScopedView(view);
 
     return (
         <div className="bq-status">
@@ -11,15 +12,19 @@ const StatusBar = () => {
                 <span className="bq-dot-ok" />
                 {loading ? 'Loading…' : 'Up to date'}
             </span>
-            <span>{totals.count} transactions</span>
-            <span>{periodLabel(period)}</span>
+            {/* Achievements are all-time, so a month's count, period and net would
+                all be describing something the view is not showing. */}
+            <span>{monthScoped ? totals.count : transactions.length} transactions</span>
+            <span>{monthScoped ? periodLabel(period) : 'All time'}</span>
             <span className="bq-grow" />
-            <span>
-                net{' '}
-                <span className={totals.net >= 0 ? 'bq-pos' : 'bq-neg'}>
-                    {totals.net >= 0 ? '+' : '−'}{money(totals.net)}
+            {monthScoped && (
+                <span>
+                    net{' '}
+                    <span className={totals.net >= 0 ? 'bq-pos' : 'bq-neg'}>
+                        {totals.net >= 0 ? '+' : '−'}{money(totals.net)}
+                    </span>
                 </span>
-            </span>
+            )}
         </div>
     );
 };

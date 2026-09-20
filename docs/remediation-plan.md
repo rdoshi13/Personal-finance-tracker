@@ -163,8 +163,12 @@ to fail without the fix. Note this bug predates v2 and is shared with the
   scaled against its own peak, so both use the space they have. An all-negative
   run puts the line at the top, all-positive at the bottom, which is the old
   behaviour.
-- **The month strip shows on Achievements**, which is all-time rather than
-  month-scoped, so the control does nothing there.
+- ~~**The month strip shows on Achievements.**~~ **Fixed**, along with two other
+  pieces of month chrome on the same view that were making the same claim: the
+  TopBar subtitle ("May 2026" under the Achievements heading) and the StatusBar's
+  per-month count, period and net. `isMonthScopedView` in `AppStateContext` is now
+  the single definition of which views are month-scoped; the StatusBar falls back
+  to the all-time transaction count and "All time", and drops the month net.
 
 ---
 

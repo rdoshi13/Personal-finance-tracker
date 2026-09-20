@@ -19,17 +19,22 @@ const mockState = {
     sort: { key: 'date', dir: 'desc' },
     setSort: jest.fn(),
     removeTransaction: jest.fn(),
+    // Read by the real TopBar and StatusBar.
+    transactions: [],
+    period: '2026-02',
+    totals: { income: 0, expense: 0, net: 0, count: 0 },
+    theme: 'dark',
+    setTheme: jest.fn(),
 };
 
 jest.mock('../../state/AppStateContext', () => ({
+    ...jest.requireActual('../../state/AppStateContext'),
     useAppState: () => mockState,
 }));
 
 // TransactionsView stays real — it owns the edit button we click.
 jest.mock('./Sidebar', () => () => <div />);
-jest.mock('./TopBar', () => () => <div />);
-jest.mock('./MonthStrip', () => () => <div />);
-jest.mock('./StatusBar', () => () => <div />);
+jest.mock('./MonthStrip', () => () => <div data-testid="month-strip" />);
 jest.mock('./Toasts', () => () => <div />);
 jest.mock('../CommandPalette', () => () => <div />);
 jest.mock('../ImportStatementModal', () => () => <div />);
@@ -100,5 +105,37 @@ describe('AppShell edit wiring', () => {
 
         expect(lastFormProps().editingTransaction).toBeNull();
         expect(screen.getByRole('dialog')).toHaveAttribute('aria-label', 'Add transaction');
+    });
+});
+
+describe('AppShell month chrome', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        mockState.monthTransactions = [rent];
+        mockState.transactions = [rent, { ...rent, _id: 'txn-8' }];
+        mockState.totals = { income: 0, expense: 1450, net: -1450, count: 1 };
+    });
+
+    test('a month-scoped view shows the strip, the period and the month net', () => {
+        mockState.view = 'transactions';
+        render(<AppShell />);
+
+        expect(screen.getByTestId('month-strip')).toBeInTheDocument();
+        // The TopBar subtitle and the StatusBar both carry the period.
+        expect(screen.getAllByText('Feb 2026')).toHaveLength(2);
+        expect(screen.getByText('1 transactions')).toBeInTheDocument();
+        expect(screen.getByText(/net/)).toBeInTheDocument();
+    });
+
+    test('achievements is all-time, so none of the month chrome appears', () => {
+        mockState.view = 'achievements';
+        render(<AppShell />);
+
+        expect(screen.queryByTestId('month-strip')).not.toBeInTheDocument();
+        expect(screen.queryAllByText('Feb 2026')).toHaveLength(0);
+        // All-time count, not the selected month's.
+        expect(screen.getByText('2 transactions')).toBeInTheDocument();
+        expect(screen.getByText('All time')).toBeInTheDocument();
+        expect(screen.queryByText(/net/)).not.toBeInTheDocument();
     });
 });
