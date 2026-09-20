@@ -120,7 +120,9 @@
 .bq-tag .bq-cdot { width: 7px; height: 7px; border-radius: 50%; }
 .bq-ract { opacity: 0; display: inline-flex; gap: 5px; transition: opacity 150ms ease; }
 .bq-mini { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; border: 1px solid var(--line-2); background: var(--panel); color: var(--ink-2); }
-.bq-mini:hover { color: var(--neg); border-color: var(--neg); }
+.bq-mini:hover { color: var(--ink-1); border-color: var(--line); }
+/* Only the destructive action gets the destructive colour. */
+.bq-mini.del:hover { color: var(--neg); border-color: var(--neg); }
 
 /* achievements */
 .bq-badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 12px; }

@@ -16,18 +16,27 @@ import ImportStatementModal from '../ImportStatementModal';
 const AppShell = () => {
     const { view, loading, error, reload, refreshProgress, pushToast } = useAppState();
     const [adding, setAdding] = useState(false);
+    // Holds the transaction being edited, or null for a new one. AddTransaction
+    // switches itself into edit mode off this prop.
+    const [editing, setEditing] = useState(null);
     const [importing, setImporting] = useState(false);
     const [paletteOpen, setPaletteOpen] = useState(false);
 
-    const openAdd = useCallback(() => setAdding(true), []);
+    const openAdd = useCallback(() => { setEditing(null); setAdding(true); }, []);
+    const openEdit = useCallback((transaction) => { setEditing(transaction); setAdding(true); }, []);
+    const closeForm = useCallback(() => { setAdding(false); setEditing(null); }, []);
     const openImport = useCallback(() => setImporting(true), []);
 
-    const handleSaved = useCallback(async () => {
-        setAdding(false);
+    const handleSaved = useCallback(async (saved, mode) => {
+        closeForm();
         await reload();
         await refreshProgress();
-        pushToast('Transaction saved', 'Your totals have been updated', 'xp');
-    }, [reload, refreshProgress, pushToast]);
+        pushToast(
+            mode === 'edit' ? 'Transaction updated' : 'Transaction saved',
+            'Your totals have been updated',
+            'xp'
+        );
+    }, [closeForm, reload, refreshProgress, pushToast]);
 
     const handleImported = useCallback(async () => {
         setImporting(false);
@@ -88,7 +97,7 @@ const AppShell = () => {
                     {!loading && !error && (
                         <>
                             {view === 'dashboard' && <DashboardView onAdd={openAdd} />}
-                            {view === 'transactions' && <TransactionsView onAdd={openAdd} />}
+                            {view === 'transactions' && <TransactionsView onAdd={openAdd} onEdit={openEdit} />}
                             {view === 'quests' && <QuestsView />}
                             {view === 'achievements' && <AchievementsView />}
                         </>
@@ -99,10 +108,15 @@ const AppShell = () => {
             </div>
 
             {adding && (
-                <div className="bq-ov" role="presentation" onClick={(e) => { if (e.target === e.currentTarget) setAdding(false); }}>
-                    <div className="bq-modal" role="dialog" aria-modal="true" aria-label="Add transaction">
+                <div className="bq-ov" role="presentation" onClick={(e) => { if (e.target === e.currentTarget) closeForm(); }}>
+                    <div
+                        className="bq-modal"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label={editing ? 'Edit transaction' : 'Add transaction'}
+                    >
                         <div style={{ padding: 16 }}>
-                            <AddTransaction onSaved={handleSaved} onCancel={() => setAdding(false)} editingTransaction={null} />
+                            <AddTransaction onSaved={handleSaved} onCancel={closeForm} editingTransaction={editing} />
                         </div>
                     </div>
                 </div>
