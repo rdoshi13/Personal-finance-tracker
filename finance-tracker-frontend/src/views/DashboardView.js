@@ -43,10 +43,25 @@ const DashboardView = ({ onAdd }) => {
         () => summary.filter((m) => m.count > 0).slice(-6),
         [summary]
     );
-    const chartMax = useMemo(
-        () => Math.max(1, ...monthsWithData.map((m) => Math.abs(m.net))),
-        [monthsWithData]
-    );
+    // Positive and negative months are scaled against their own peak, so the zero
+    // line can sit at a fixed point and each side still uses the full space it has.
+    const { maxPos, maxNeg } = useMemo(() => {
+        let positivePeak = 0;
+        let negativePeak = 0;
+        monthsWithData.forEach((m) => {
+            if (m.net >= 0) positivePeak = Math.max(positivePeak, m.net);
+            else negativePeak = Math.max(negativePeak, Math.abs(m.net));
+        });
+        return { maxPos: positivePeak, maxNeg: negativePeak };
+    }, [monthsWithData]);
+
+    // Where zero sits, as a percentage down from the top of the plot. An all-negative
+    // run puts it at the top and hangs every bar below it; all-positive puts it at
+    // the bottom and everything grows up, which is the old behaviour.
+    const zeroPct = useMemo(() => {
+        const span = maxPos + maxNeg;
+        return span ? (maxPos / span) * 100 : 100;
+    }, [maxPos, maxNeg]);
 
     const dayGroups = useMemo(() => {
         const byDay = {};
@@ -194,16 +209,13 @@ const DashboardView = ({ onAdd }) => {
                     </div>
                     <div className="bq-pb">
                         <div className="bq-chart">
-                            {monthsWithData.map((m, index) => {
-                                const height = (Math.abs(m.net) / chartMax) * 100;
-                                return (
-                                    <div
-                                        key={m.periodKey}
-                                        className={`bq-cbar ${m.net < 0 ? 'neg' : ''} ${m.periodKey === period ? 'on' : ''}`}
-                                    >
-                                        <span className="bq-cbar-v">
-                                            {m.net < 0 ? '−' : ''}${Math.round(Math.abs(m.net)).toLocaleString()}
-                                        </span>
+                            <div className="bq-plot">
+                                <span className="bq-zero" style={{ top: `${zeroPct}%` }} aria-hidden="true" />
+                                {monthsWithData.map((m, index) => {
+                                    const positive = m.net >= 0;
+                                    const peak = positive ? maxPos : maxNeg;
+                                    const height = peak ? (Math.abs(m.net) / peak) * 100 : 0;
+                                    const bar = (
                                         <span
                                             className="bq-cbar-t"
                                             style={{
@@ -211,9 +223,29 @@ const DashboardView = ({ onAdd }) => {
                                                 transitionDelay: `${index * 55}ms`,
                                             }}
                                         />
-                                    </div>
-                                );
-                            })}
+                                    );
+                                    const label = (
+                                        <span className="bq-cbar-v">
+                                            {positive ? '' : '−'}${Math.round(Math.abs(m.net)).toLocaleString()}
+                                        </span>
+                                    );
+                                    return (
+                                        <div
+                                            key={m.periodKey}
+                                            className={`bq-cbar ${positive ? '' : 'neg'} ${m.periodKey === period ? 'on' : ''}`}
+                                        >
+                                            <span className="bq-cbar-up" style={{ height: `${zeroPct}%` }}>
+                                                {positive && label}
+                                                {positive && bar}
+                                            </span>
+                                            <span className="bq-cbar-down" style={{ height: `${100 - zeroPct}%` }}>
+                                                {!positive && bar}
+                                                {!positive && label}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                         <div className="bq-chart-foot">
                             {monthsWithData.map((m) => (

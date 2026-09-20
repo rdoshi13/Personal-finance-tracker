@@ -58,11 +58,25 @@
 .bq-ctr i { display: block; height: 100%; border-radius: 4px; transition: width 620ms cubic-bezier(.2,.8,.2,1); }
 
 /* net-by-month: HTML bars, because SVG rect height does not transition reliably */
-.bq-chart { display: flex; align-items: flex-end; gap: 10px; height: 132px; padding-top: 18px; }
-.bq-cbar { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 6px; }
+/* The plot carries an explicit height so the columns' percentage heights and the
+   zero line resolve against the same box. Padding leaves room for a value label to
+   sit outside the bar at either extreme. */
+.bq-chart { padding: 18px 0; }
+.bq-plot { position: relative; display: flex; align-items: stretch; gap: 10px; height: 114px; }
+/* Sits above the columns: when every month shares a sign the line lands on the
+   plot edge, flush with the bars, and would otherwise be painted over. */
+.bq-zero { position: absolute; left: 0; right: 0; height: 1px; background: var(--line-2); z-index: 1; }
+.bq-cbar { position: relative; flex: 1; display: flex; flex-direction: column; height: 100%; }
+/* Positive bars sit above the line and grow up from it, negative bars below and
+   grow down, so the sign is legible from the shape and not just the colour. */
+.bq-cbar-up { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; }
+.bq-cbar-down { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 4px; }
 .bq-cbar-v { font-size: 11px; font-weight: 600; color: var(--ink-2); font-family: 'IBM Plex Mono', monospace; white-space: nowrap; }
-.bq-cbar-t { width: 100%; background: var(--s1); border-radius: 4px 4px 0 0; min-height: 4px; transition: height 640ms cubic-bezier(.2,.8,.2,1); }
-.bq-cbar.neg .bq-cbar-t { background: var(--neg); }
+/* flex-shrink: 0 matters. The value label is a flex sibling, so without it the
+   tallest bar is squeezed by the label's height and the columns stop being
+   proportional to each other. The label overflows into .bq-chart's padding. */
+.bq-cbar-t { width: 100%; flex-shrink: 0; background: var(--s1); border-radius: 4px 4px 0 0; min-height: 4px; transition: height 640ms cubic-bezier(.2,.8,.2,1); }
+.bq-cbar.neg .bq-cbar-t { background: var(--neg); border-radius: 0 0 4px 4px; }
 .bq-cbar.on .bq-cbar-v { color: var(--ink-1); }
 .bq-chart-foot { display: flex; gap: 10px; margin-top: 8px; }
 .bq-chart-foot span { flex: 1; text-align: center; font-size: 11px; color: var(--ink-3); }

@@ -157,10 +157,12 @@ to fail without the fix. Note this bug predates v2 and is shared with the
 
 ### Still open from the walkthrough
 
-- **Net-by-month bars ignore sign.** All three months are negative, and all three
-  render as upward bars; only the colour and the numeric label distinguish a
-  −$619 month from a +$619 one. The labels carry it for now, but a zero baseline
-  would read better.
+- ~~**Net-by-month bars ignore sign.**~~ **Fixed.** The plot now splits at a zero
+  line whose position is set by the data (`maxPos / (maxPos + maxNeg)`), so
+  positive months grow up from it and negative months hang below. Each side is
+  scaled against its own peak, so both use the space they have. An all-negative
+  run puts the line at the top, all-positive at the bottom, which is the old
+  behaviour.
 - **The month strip shows on Achievements**, which is all-time rather than
   month-scoped, so the control does nothing there.
 
