@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import TransactionsView from './TransactionsView';
 
 const mockRemoveTransaction = jest.fn();
@@ -63,5 +63,120 @@ describe('TransactionsView', () => {
         fireEvent.click(screen.getByLabelText('Delete Weekly shop'));
 
         expect(mockRemoveTransaction).toHaveBeenCalledWith('legacy-9');
+    });
+});
+
+describe('TransactionsView filtering and sorting', () => {
+    const onAdd = jest.fn();
+    const onEdit = jest.fn();
+
+    const rows = () => [...document.querySelectorAll('.bq-table tbody tr')]
+        .map((r) => r.querySelector('.bq-tn')?.textContent)
+        .filter(Boolean);
+
+    const ledger = [
+        { _id: '1', name: 'Costco', description: 'Weekly shop', category: 'Groceries', amount: 80, type: 'expense', date: '2026-05-02T12:00:00.000Z' },
+        { _id: '2', name: 'Payroll', description: 'Monthly salary', category: 'Salary', amount: 3000, type: 'income', date: '2026-05-10T12:00:00.000Z' },
+        { _id: '3', name: 'Netflix', description: 'Streaming plan', category: 'Subscription', amount: 15, type: 'subscription', date: '2026-05-20T12:00:00.000Z' },
+    ];
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        mockState.monthTransactions = ledger;
+        mockState.categories = ['Groceries', 'Salary', 'Subscription'];
+        mockState.filters = { q: '', type: 'all', category: 'all', from: '', to: '' };
+        mockState.sort = { key: 'date', dir: 'desc' };
+    });
+
+    test('search matches name or description, case-insensitively', () => {
+        mockState.filters = { ...mockState.filters, q: 'COSTCO' };
+        render(<TransactionsView onAdd={onAdd} onEdit={onEdit} />);
+        expect(rows()).toEqual(['Costco']);
+    });
+
+    test('search also reaches the description, not just the name', () => {
+        mockState.filters = { ...mockState.filters, q: 'streaming' };
+        render(<TransactionsView onAdd={onAdd} onEdit={onEdit} />);
+        expect(rows()).toEqual(['Netflix']);
+    });
+
+    test('the outflow filter keeps subscriptions alongside expenses', () => {
+        mockState.filters = { ...mockState.filters, type: 'outflow' };
+        render(<TransactionsView onAdd={onAdd} onEdit={onEdit} />);
+        expect(rows().sort()).toEqual(['Costco', 'Netflix']);
+    });
+
+    test('the income filter keeps only income', () => {
+        mockState.filters = { ...mockState.filters, type: 'income' };
+        render(<TransactionsView onAdd={onAdd} onEdit={onEdit} />);
+        expect(rows()).toEqual(['Payroll']);
+    });
+
+    test('the date range is inclusive at both ends', () => {
+        mockState.filters = { ...mockState.filters, from: '2026-05-10', to: '2026-05-20' };
+        render(<TransactionsView onAdd={onAdd} onEdit={onEdit} />);
+        expect(rows().sort()).toEqual(['Netflix', 'Payroll']);
+    });
+
+    test('sorting by amount ascending puts the smallest first', () => {
+        mockState.sort = { key: 'amount', dir: 'asc' };
+        render(<TransactionsView onAdd={onAdd} onEdit={onEdit} />);
+        expect(rows()).toEqual(['Netflix', 'Costco', 'Payroll']);
+    });
+
+    test('the header reports how many of the month are shown', () => {
+        mockState.filters = { ...mockState.filters, category: 'Groceries' };
+        render(<TransactionsView onAdd={onAdd} onEdit={onEdit} />);
+        expect(screen.getByText('1 of 3')).toBeInTheDocument();
+    });
+
+    test('filters that match nothing say so instead of showing a blank table', () => {
+        mockState.filters = { ...mockState.filters, q: 'nothing matches this' };
+        render(<TransactionsView onAdd={onAdd} onEdit={onEdit} />);
+        expect(screen.getByText('No transactions match these filters.')).toBeInTheDocument();
+        expect(rows()).toEqual([]);
+    });
+
+    test('typing in search patches only that field', () => {
+        render(<TransactionsView onAdd={onAdd} onEdit={onEdit} />);
+        fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'cost' } });
+
+        const patch = mockState.setFilters.mock.calls[0][0](mockState.filters);
+        expect(patch).toEqual({ q: 'cost', type: 'all', category: 'all', from: '', to: '' });
+    });
+
+    test('Clear resets every filter at once', () => {
+        mockState.filters = { q: 'x', type: 'income', category: 'Salary', from: '2026-05-01', to: '2026-05-31' };
+        render(<TransactionsView onAdd={onAdd} onEdit={onEdit} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+
+        expect(mockState.setFilters).toHaveBeenCalledWith({
+            q: '', type: 'all', category: 'all', from: '', to: '',
+        });
+    });
+
+    test('clicking a sorted column flips direction rather than re-sorting descending', () => {
+        render(<TransactionsView onAdd={onAdd} onEdit={onEdit} />);
+        const dateHeader = screen.getByRole('columnheader', { name: /Date/ });
+        expect(dateHeader).toHaveAttribute('aria-sort', 'descending');
+
+        fireEvent.click(dateHeader);
+        expect(mockState.setSort.mock.calls[0][0]({ key: 'date', dir: 'desc' }))
+            .toEqual({ key: 'date', dir: 'asc' });
+    });
+
+    test('switching to a different column starts descending', () => {
+        render(<TransactionsView onAdd={onAdd} onEdit={onEdit} />);
+        fireEvent.click(screen.getByRole('columnheader', { name: /Amount/ }));
+
+        expect(mockState.setSort.mock.calls[0][0]({ key: 'date', dir: 'asc' }))
+            .toEqual({ key: 'amount', dir: 'desc' });
+    });
+
+    test('the footer nets only what is on screen', () => {
+        mockState.filters = { ...mockState.filters, type: 'outflow' };
+        render(<TransactionsView onAdd={onAdd} onEdit={onEdit} />);
+        expect(screen.getByText('2 shown')).toBeInTheDocument();
+        expect(within(screen.getByText(/Net of shown/)).getByText(/95\.00/)).toBeInTheDocument();
     });
 });

@@ -5,8 +5,9 @@ Companion to [frontend-rework-plan.md](frontend-rework-plan.md) — that documen
 the Budget Quest rework, this one covers what has to be true before its final step
 (flag flip, delete `Report.js`) is safe.
 
-**Status:** Phases 1 and 2 done. Phase 3 done apart from PDF export, which is
-parked by decision. Phases 4–5 open.
+**Status:** Phases 1, 2 and 4 done. Phase 3 done apart from PDF export, which is
+parked by decision. Only the cutover itself (step 6) and the deferred Phase 5 work
+remain.
 
 ---
 
@@ -237,20 +238,55 @@ direction is what makes it visible.
 
 ---
 
-## Phase 4 — Replace the test coverage before cutting over
+## Phase 4 — Replace the test coverage before cutting over ✅
 
-`Report.test.js` holds **11 integration tests**: load/render, monthly report data,
-legacy-shape fallback, delete under two id shapes, search filtering, import preview,
-invalid import rows, import-to-list, theme persistence, unauthenticated state.
+`Report.test.js` held 11 integration tests and v2 had no component tests at all, so
+deleting it would have dropped all 11 and replaced them with nothing.
 
-**v2 has zero component tests.** Only `money`, `categoryColor` and `useCountUp` lib
-tests exist. Deleting `Report.test.js` drops 11 tests and replaces them with nothing.
+The suite went from **46 tests in 8 files** to **119 in 15**. Every one of the 11
+now has a named v2 home, which is the bar the cutover has to clear:
 
-Needed before cutover:
+| `Report.test.js` | Replaced by |
+|---|---|
+| loads and renders transactions | `AppStateContext` — loads transactions, budgets and progress |
+| loads monthly report data | `BreakdownView` — 6 cases |
+| falls back when the report API is legacy | **No equivalent needed.** v2 derives the breakdown client-side, so there is no legacy response shape to fall back from. |
+| deletes a transaction from the list | `AppStateContext` — optimistic drop, and reload on failure · `TransactionsView` — delete removes by id |
+| deletes when the API returns `id` not `_id` | `TransactionsView` — falls back to `id` when a row has no `_id` |
+| filters transactions by search text | `TransactionsView` — 13 cases on filtering and sorting |
+| opens the import modal, renders preview rows | `ImportStatementModal` — previewing lists rows and the server summary |
+| shows invalid import rows, excludes from count | `ImportStatementModal` — invalid rows show their reasons; duplicates never importable |
+| adds imported transactions to the list | `AppShell` — a finished import reloads and reports |
+| toggles and persists theme mode | `AppStateContext` — defaults dark, persists, drives `data-theme` |
+| shows sign in when unauthenticated | `BudgetQuest` — 11 cases on the auth gate |
 
-- equivalents against `AppShell`, `TransactionsView` and `DashboardView`
-- `App.test.js` currently does `jest.mock('./Report', …)` and breaks the moment
-  `Report.js` is deleted — it needs rewriting in the same commit
+### New suites
+
+| File | Tests | Covers |
+|---|---|---|
+| `state/AppStateContext.test.js` | 13 | The state engine: loading, `pickInitialPeriod`, derived month totals, optimistic delete with rollback, theme persistence, quest claims, partial-failure tolerance |
+| `BudgetQuest.test.js` | 11 | The auth gate: session check, signed-out vs real failure, reset-token precedence and URL scrubbing, sign-out |
+| `components/ImportStatementModal.test.js` | 7 | Preview, invalid rows, duplicates, what actually gets sent, in-place correction, both failure paths |
+| `views/TransactionsView.test.js` | +13 | Search across name and description, type/category/date filters, sort direction, shown counts, footer net |
+| `components/shell/AppShell.test.js` | +2 | Import wiring: reload and toast on success |
+
+Two things worth keeping in mind about how these are written:
+
+- **`AppStateContext` is tested through a probe component**, not by mocking itself.
+  The API modules are mocked; the reducer logic is real. That is the part the whole
+  v2 UI depends on and the part nothing else exercises.
+- **`AppShell` renders the real `TopBar` and `StatusBar`**, not stubs, because the
+  behaviour under test lives in them. Stubbing them would have made the month-chrome
+  tests pass regardless.
+
+### Still outstanding for the cutover itself
+
+- `App.test.js` does `jest.mock('./Report', …)`. It now controls `REACT_APP_UI_V2`
+  itself and covers both branches, but the `Report` mock and the flag-off case both
+  go in the same commit that deletes `Report.js`.
+- `MonthStrip`, `Sidebar`, `CommandPalette`, `QuestsView` and `AchievementsView` are
+  still untested. None of them replace a `Report.test.js` test, so they did not block
+  this phase, but `CommandPalette` and `Sidebar` are the two worth doing next.
 
 ---
 
@@ -275,7 +311,7 @@ Needed before cutover:
 | 3 | Wire transaction editing into `TransactionsView` | 2 | done |
 | 4 | Port the category breakdown | 2 | done |
 | 4b | Port PDF export | 2 | parked |
-| 5 | v2 component tests replacing `Report.test.js` | 3, 4 | open |
+| 5 | v2 component tests replacing `Report.test.js` | 3, 4 | done |
 | 6 | Flip flag in Vercel, watch logs, then delete `Report.js`, `Report.test.js`, rewrite `App.test.js` | 5 | open |
 | 7 | Pagination; CRA migration | — | open |
 
