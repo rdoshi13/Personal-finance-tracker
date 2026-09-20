@@ -12,6 +12,14 @@ const router = express.Router();
 
 const forgotPasswordLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 5 });
 const resetPasswordLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10 });
+// Two limiters on login: one per account, which stops a password being guessed
+// against a single address, and a looser one per IP, which stops the same password
+// being sprayed across many addresses. Either alone leaves the other attack open.
+const loginAccountLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10 });
+const loginAddressLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 50 });
+const signupLimiter = createRateLimiter({ windowMs: 60 * 60 * 1000, max: 5 });
+
+const TOO_MANY_ATTEMPTS = 'Too many attempts. Please try again later.';
 
 const sanitizeUser = (user) => ({
     id: String(user._id),
@@ -38,6 +46,10 @@ const createSessionResponse = (res, user) => {
 
 router.post('/signup', async (req, res) => {
     try {
+        if (!signupLimiter.hit(String(req.ip)).allowed) {
+            return res.status(429).json({ message: TOO_MANY_ATTEMPTS });
+        }
+
         const name = String(req.body?.name || '').trim();
         const email = String(req.body?.email || '').trim().toLowerCase();
         const password = String(req.body?.password || '');
@@ -78,6 +90,13 @@ router.post('/login', async (req, res) => {
 
         if (!email || !password) {
             return res.status(400).json({ message: 'Email and password are required' });
+        }
+
+        // Checked before touching the database, so a flood costs no bcrypt work.
+        const withinAccountLimit = loginAccountLimiter.hit(`${req.ip}:${email}`).allowed;
+        const withinAddressLimit = loginAddressLimiter.hit(String(req.ip)).allowed;
+        if (!withinAccountLimit || !withinAddressLimit) {
+            return res.status(429).json({ message: TOO_MANY_ATTEMPTS });
         }
 
         const user = await User.findOne({ email });
@@ -153,9 +172,7 @@ router.post('/reset-password', async (req, res) => {
 
         const limit = resetPasswordLimiter.hit(String(req.ip));
         if (!limit.allowed) {
-            return res.status(429).json({
-                message: 'Too many attempts. Please try again later.',
-            });
+            return res.status(429).json({ message: TOO_MANY_ATTEMPTS });
         }
 
         if (password.length < 8) {

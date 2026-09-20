@@ -27,6 +27,13 @@ const TransactionSchema = new mongoose.Schema({
     amount: {
         type: Number,
         required: true,
+        // Amounts are stored as magnitudes, with direction carried by `type`. Every
+        // aggregate in the app relies on that -- summarize(), the /summary pipeline,
+        // quests, budgets and the charts all add amounts and subtract by type. A
+        // negative amount would silently invert its own contribution to all of them,
+        // so it is rejected here rather than in each caller.
+        min: [0.01, 'Amount must be greater than zero'],
+        max: [1e12, 'Amount is out of range'],
     },
     date: {
         type: Date,
