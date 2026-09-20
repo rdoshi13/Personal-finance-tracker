@@ -64,11 +64,28 @@ describe('inferCadence', () => {
 });
 
 describe('normaliseToMonthly', () => {
-    test('puts every cadence on a monthly footing', () => {
-        expect(normaliseToMonthly(120, 365.25)).toBeCloseTo(10, 1);
-        expect(normaliseToMonthly(30, 30.44)).toBeCloseTo(30, 5);
-        expect(normaliseToMonthly(90, 91.32)).toBeCloseTo(30, 1);
-        expect(normaliseToMonthly(10, 7)).toBeCloseTo(43.49, 1);
+    test('uses calendar periods, so an annual plan is exactly a twelfth', () => {
+        // A day ratio gives 10.0008 here, and $120.01 once multiplied back up.
+        expect(normaliseToMonthly(120, 'yearly')).toBe(10);
+        expect(normaliseToMonthly(120, 'yearly') * 12).toBe(120);
+        expect(normaliseToMonthly(30, 'monthly')).toBe(30);
+        expect(normaliseToMonthly(90, 'quarterly')).toBe(30);
+        expect(normaliseToMonthly(10, 'weekly')).toBeCloseTo(43.33, 2);
+    });
+
+    test('an unknown cadence is counted at face value', () => {
+        expect(normaliseToMonthly(25, 'unknown')).toBe(25);
+    });
+
+    test('an irregular run falls back to its observed spacing', () => {
+        expect(normaliseToMonthly(20, 'irregular', 60)).toBeCloseTo(10.15, 2);
+    });
+
+    test('every result is a whole number of cents', () => {
+        [['yearly', 99.99], ['weekly', 3.33], ['quarterly', 49.99]].forEach(([cadence, amount]) => {
+            const monthly = normaliseToMonthly(amount, cadence);
+            expect(Math.round(monthly * 100)).toBeCloseTo(monthly * 100, 6);
+        });
     });
 });
 
@@ -114,7 +131,9 @@ describe('detectSubscriptions', () => {
         ]);
 
         expect(rows[0].cadence).toBe('yearly');
-        expect(rows[0].monthlyCost).toBeCloseTo(10, 1);
+        // Exactly a twelfth, so the annual figure the UI shows comes back to $120.
+        expect(rows[0].monthlyCost).toBe(10);
+        expect(monthlyTotal(rows) * 12).toBe(120);
         expect(rows[0].status).toBe('active');
     });
 
@@ -239,5 +258,15 @@ describe('detectSubscriptions', () => {
         expect(detect([])).toEqual([]);
         expect(detectSubscriptions()).toEqual([]);
         expect(monthlyTotal()).toBe(0);
+    });
+
+    test('the monthly total is exact across awkward amounts', () => {
+        const rows = detect([
+            charge('A', '2026-04-01', 0.1), charge('A', '2026-05-01', 0.1),
+            charge('B', '2026-04-02', 0.2), charge('B', '2026-05-02', 0.2),
+        ]);
+
+        // 0.1 + 0.2 is 0.30000000000000004 if summed as plain floats.
+        expect(monthlyTotal(rows)).toBe(0.3);
     });
 });

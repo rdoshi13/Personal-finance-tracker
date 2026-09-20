@@ -12,6 +12,7 @@ const {
     normalizeSubmissionRow,
 } = require('../lib/transactionImport');
 const { OUTFLOW_TYPES } = require('../lib/quests');
+const { roundMoney, sumMoney } = require('../lib/money');
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -374,12 +375,16 @@ router.get('/summary', async (req, res) => {
 
         const months = Array.from({ length: 12 }, (_, i) => {
             const row = byMonth[i + 1] || { income: 0, expense: 0, count: 0 };
+            // Mongo's $sum adds doubles, so snap each figure to the cent before
+            // it leaves the API and anything downstream compares against it.
+            const income = roundMoney(row.income);
+            const expense = roundMoney(row.expense);
             return {
                 month: i + 1,
                 periodKey: `${year}-${String(i + 1).padStart(2, '0')}`,
-                income: row.income,
-                expense: row.expense,
-                net: row.income - row.expense,
+                income,
+                expense,
+                net: roundMoney(income - expense),
                 count: row.count,
             };
         });
@@ -428,20 +433,22 @@ router.get('/report/:year/:month', async (req, res) => {
             const amount = Number(transaction.amount) || 0;
 
             if (!report[groupCategory]) report[groupCategory] = { total: 0, transactions: 0 };
-            report[groupCategory].total += amount;
+            report[groupCategory].total = roundMoney(report[groupCategory].total + amount);
             report[groupCategory].transactions += 1;
 
             const typeBucket = transaction.type === 'income' ? incomeReport : outflowReport;
             if (!typeBucket[groupCategory]) typeBucket[groupCategory] = { total: 0, transactions: 0 };
-            typeBucket[groupCategory].total += amount;
+            typeBucket[groupCategory].total = roundMoney(typeBucket[groupCategory].total + amount);
             typeBucket[groupCategory].transactions += 1;
         });
 
-        // Total income and expenses
-        const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-        const totalExpenses = transactions
-            .filter(t => t.type === 'expense' || t.type === 'subscription')
-            .reduce((acc, t) => acc + t.amount, 0);
+        // Total income and expenses, summed exactly rather than by adding doubles.
+        const totalIncome = sumMoney(transactions.filter(t => t.type === 'income').map(t => t.amount));
+        const totalExpenses = sumMoney(
+            transactions
+                .filter(t => t.type === 'expense' || t.type === 'subscription')
+                .map(t => t.amount)
+        );
 
         res.json({
             report,

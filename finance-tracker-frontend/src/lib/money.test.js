@@ -1,4 +1,4 @@
-import { initialsOf, isIncome, isOutflow, money, periodKeyOf, periodLabel, signedMoney, spendByCategory, summarize, categoryBreakdown } from './money';
+import { initialsOf, isIncome, isOutflow, money, periodKeyOf, periodLabel, signedMoney, spendByCategory, summarize, categoryBreakdown, isOverBy, roundMoney, sumMoney, toCents } from './money';
 
 const tx = (date, type, amount, category = 'Misc') => ({ date, type, amount, category });
 
@@ -104,5 +104,74 @@ describe('categoryBreakdown', () => {
     test('no transactions yields empty sides rather than NaN shares', () => {
         expect(categoryBreakdown([])).toEqual({ income: [], outflow: [] });
         expect(categoryBreakdown()).toEqual({ income: [], outflow: [] });
+    });
+});
+
+describe('exact money arithmetic', () => {
+    test('sumMoney is exact where plain addition is not', () => {
+        expect([0.1, 0.2].reduce((a, b) => a + b, 0)).not.toBe(0.3);
+        expect(sumMoney([0.1, 0.2])).toBe(0.3);
+        expect(sumMoney([0.1, 0.2, 0.3])).toBe(0.6);
+        expect(sumMoney([64.77, 46.62, 40, 17.55])).toBe(168.94);
+    });
+
+    test('sumMoney handles negatives and an empty list', () => {
+        expect(sumMoney([10.05, -3.02])).toBe(7.03);
+        expect(sumMoney([])).toBe(0);
+        expect(sumMoney()).toBe(0);
+    });
+
+    test('toCents rounds half away from zero at the cent', () => {
+        expect(toCents(11.99)).toBe(1199);
+        expect(toCents(0.005)).toBe(1);
+        expect(toCents('12.50')).toBe(1250);
+        expect(toCents(undefined)).toBe(0);
+    });
+
+    test('isOverBy treats a figure met to the penny as not over', () => {
+        // The bug this exists for: 0.1 + 0.2 > 0.3 is true as plain floats.
+        expect(sumMoney([0.1, 0.2]) > 0.3).toBe(false);
+        expect(isOverBy(0.30000000000000004, 0.3)).toBe(false);
+        expect(isOverBy(300, 300)).toBe(false);
+        expect(isOverBy(300.01, 300)).toBe(true);
+        expect(isOverBy(299.99, 300)).toBe(false);
+    });
+
+    test('roundMoney snaps a computed value to the cent', () => {
+        expect(roundMoney(10.000821355236141)).toBe(10);
+        expect(roundMoney(168.94000000000001)).toBe(168.94);
+    });
+});
+
+describe('aggregates are exact', () => {
+    const t = (type, category, amount) => ({ type, category, amount });
+
+    test('summarize does not drift', () => {
+        const rows = [
+            t('income', 'Salary', 0.1), t('income', 'Salary', 0.2),
+            t('expense', 'Food', 0.1), t('expense', 'Food', 0.2),
+        ];
+        const result = summarize(rows);
+
+        expect(result.income).toBe(0.3);
+        expect(result.expense).toBe(0.3);
+        expect(result.net).toBe(0);
+    });
+
+    test('spendByCategory does not drift', () => {
+        const totals = spendByCategory([
+            t('expense', 'Food', 0.1), t('expense', 'Food', 0.2),
+        ]);
+
+        expect(totals.Food).toBe(0.3);
+    });
+
+    test('a category exactly on its cap is not over it', () => {
+        // What the dashboard compares: spendByCategory against the stored cap.
+        const totals = spendByCategory([
+            t('expense', 'Food', 0.1), t('expense', 'Food', 0.2),
+        ]);
+
+        expect(isOverBy(totals.Food, 0.3)).toBe(false);
     });
 });
