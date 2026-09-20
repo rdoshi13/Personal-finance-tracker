@@ -65,6 +65,11 @@ test.before(async () => {
         return;
     }
 
+    // Build the declared indexes against a fresh database. This is where an
+    // invalid index declaration shows up -- an existing database keeps whatever
+    // was created under an older schema and hides the problem.
+    await Promise.all([Transaction.init(), User.init()]);
+
     server = app.listen(0);
     await new Promise((resolve) => server.once('listening', resolve));
     baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -269,6 +274,57 @@ dbTest('a throttled login does not leak whether the account exists', async () =>
 
     assert.equal(status, 429);
     assert.match(body.message, /Too many attempts/);
+});
+
+// --- indexes actually get created ------------------------------------------
+
+dbTest('the import dedupe index exists on a fresh database', async () => {
+    const indexes = await Transaction.collection.indexes();
+    const dedupe = indexes.find((i) => i.name === 'userId_1_importHash_1');
+
+    // MongoDB rejects $ne inside a partialFilterExpression, so a declaration
+    // using it fails silently and leaves imports with no dedupe guarantee.
+    assert.ok(dedupe, 'the dedupe index must be creatable, not just declared');
+    assert.equal(dedupe.unique, true);
+});
+
+dbTest('the same import hash cannot be stored twice for one user', async () => {
+    const row = {
+        userId: ann._id, name: 'Imported', type: 'expense', category: 'Food',
+        amount: 10, date: new Date('2026-05-01'), importHash: 'hash-dedupe-1',
+    };
+    await Transaction.create(row);
+
+    await assert.rejects(
+        () => Transaction.create(row),
+        (error) => error.code === 11000,
+        'a repeat import of the same row must be refused'
+    );
+});
+
+dbTest('two users may hold the same import hash', async () => {
+    const hash = 'hash-shared-across-users';
+    await Transaction.create({
+        userId: ann._id, name: 'Mine', type: 'expense', category: 'Food',
+        amount: 10, date: new Date('2026-05-01'), importHash: hash,
+    });
+
+    // The index is scoped per user, so Bob importing the same statement row is fine.
+    await assert.doesNotReject(() => Transaction.create({
+        userId: bob._id, name: 'Theirs', type: 'expense', category: 'Food',
+        amount: 10, date: new Date('2026-05-01'), importHash: hash,
+    }));
+});
+
+dbTest('rows without an import hash are exempt from the unique constraint', async () => {
+    // Hand-entered transactions have no hash; the partial filter must let any
+    // number of them coexist.
+    const base = {
+        userId: ann._id, name: 'Manual', type: 'expense', category: 'Food',
+        amount: 5, date: new Date('2026-05-02'),
+    };
+    await Transaction.create(base);
+    await assert.doesNotReject(() => Transaction.create(base));
 });
 
 // --- pagination ------------------------------------------------------------

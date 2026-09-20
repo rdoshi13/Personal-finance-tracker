@@ -6,7 +6,8 @@ const TransactionSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true,
-        index: true,
+        // No standalone index here: userId is the leading key of the compound
+        // index below, and MongoDB uses an index prefix for queries on userId alone.
     },
     name: {
         type: String,
@@ -66,7 +67,11 @@ TransactionSchema.index(
     { userId: 1, importHash: 1 },
     {
         unique: true,
-        partialFilterExpression: { importHash: { $exists: true, $type: 'string', $ne: '' } },
+        // $gt: '' rather than $ne: '' -- MongoDB rejects $ne in a partial filter
+        // ($ne desugars to $not, which is unsupported), so the declaration silently
+        // failed to create on a fresh database and imports lost their dedupe
+        // guarantee. For strings '' is the minimum, so $gt: '' means non-empty.
+        partialFilterExpression: { importHash: { $exists: true, $type: 'string', $gt: '' } },
     }
 );
 

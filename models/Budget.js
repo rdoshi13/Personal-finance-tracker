@@ -6,7 +6,8 @@ const BudgetSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',
             required: true,
-            index: true,
+            // No standalone index here: userId is the leading key of the compound
+            // index below, and MongoDB uses an index prefix for queries on userId alone.
         },
         category: {
             type: String,

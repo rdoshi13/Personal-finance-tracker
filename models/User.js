@@ -24,6 +24,6 @@ const UserSchema = new mongoose.Schema(
     }
 );
 
-UserSchema.index({ email: 1 }, { unique: true });
+// The unique index on email comes from `unique: true` on the field above.
 
 module.exports = mongoose.model('User', UserSchema);
