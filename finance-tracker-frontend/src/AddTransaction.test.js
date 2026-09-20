@@ -87,6 +87,34 @@ describe('AddTransaction', () => {
         });
     });
 
+    test('keeps a category the type list does not contain', async () => {
+        // The importer produces expense + Subscription and income + Groceries.
+        // Neither is in that type's option list, and the form used to rewrite them
+        // to 'Misc', so opening the editor and saving silently lost the category.
+        const imported = {
+            _id: '42',
+            name: 'Google Play',
+            category: 'Subscription',
+            amount: 25,
+            type: 'expense',
+            description: 'Card Purchase Google Play',
+        };
+        updateTransaction.mockResolvedValue(imported);
+
+        render(<AddTransaction onSaved={onSaved} onCancel={onCancel} editingTransaction={imported} />);
+
+        const categoryField = screen.getByLabelText('Category');
+        expect(categoryField).toHaveValue('Subscription');
+
+        fireEvent.submit(categoryField.closest('form'));
+
+        await waitFor(() => expect(updateTransaction).toHaveBeenCalled());
+        expect(updateTransaction).toHaveBeenCalledWith(
+            '42',
+            expect.objectContaining({ category: 'Subscription' })
+        );
+    });
+
     test('shows API errors', async () => {
         createTransaction.mockRejectedValue(new Error('Bad request'));
 

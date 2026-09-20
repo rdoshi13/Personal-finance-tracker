@@ -5,9 +5,8 @@ Companion to [frontend-rework-plan.md](frontend-rework-plan.md) — that documen
 the Budget Quest rework, this one covers what has to be true before its final step
 (flag flip, delete `Report.js`) is safe.
 
-**Status:** Phase 1 done. Phase 2 part done (v2 boots; logged-in walkthrough
-outstanding). Phase 3 transaction editing done, PDF export parked, category
-breakdown open. Phases 4–5 open.
+**Status:** Phases 1 and 2 done. Phase 3 transaction editing done, PDF export
+parked, category breakdown open. Phases 4–5 open.
 
 ---
 
@@ -103,7 +102,7 @@ advisories periodically rather than assuming a listed package is handled.
 
 ---
 
-## Phase 2 — Actually run the v2 UI (part done)
+## Phase 2 — Actually run the v2 UI ✅
 
 `REACT_APP_UI_V2` appeared in [README.md](../README.md), in
 [App.js](../finance-tracker-frontend/src/App.js) and in the rework plan, but in **no
@@ -117,11 +116,53 @@ Done:
   clean — only the expected 401s from the unauthenticated `/api/auth/me` check.
   No compile errors, no React warnings.
 
-Still to do — **needs a signed-in session, so it is a human step**: click through
-Dashboard, Transactions, Quests and Achievements against real data. The Phase 3
-gap list came from reading the code; walking the logged-in views will very likely
-add to it. Expect layout problems in particular, since no view below the auth gate
-has ever been rendered against real transactions.
+**Walked signed-in on 2026-09-20** against the local `test@test.com` account
+(27 transactions, Mar–May 2026). All four views render correctly, console clean.
+
+Working as designed:
+
+- **The empty-month fix.** Opening on May 2026 (latest month with data) rather
+  than the current month, and a real empty state with "Go to May 2026" on months
+  without any. This was the rework plan's "single worst bug" and it is genuinely
+  fixed.
+- Dashboard hero, budget bars, net-by-month chart, recent activity, quest cards
+  with claim buttons, achievement grid, filters, sort, command palette (⌘K).
+- The importer's merchant cleanup reads well in the table — "Google Play",
+  "OpenAI ChatGPT", "Venmo - Doshi Rishabh" rather than raw statement text.
+- Transaction editing, end to end: opens prefilled, saves, toast reads
+  "Transaction updated", change persists to Mongo.
+
+### Found while walking it: categories were silently reset on edit
+
+Opening the edit form on an imported transaction could **discard its category**.
+`AddTransaction` keeps a hardcoded category list per type and replaced anything
+not in that list with the type's default, `Misc`. Saving then persisted the
+replacement.
+
+The importer routinely produces combinations the lists do not cover, because it
+picks a category from merchant rules but derives the type from the amount's sign:
+
+| Importer output | In that type's list? | Became |
+|---|---|---|
+| `expense` + `Subscription` | no — `Subscription` only exists under type `subscription` | `Misc` |
+| `income` + `Groceries` | no — a shop refund is income, `Groceries` is expense-only | `Misc` |
+
+**6 of 49 transactions** in the local test data were affected — 12%. `Utilities`,
+`Tax Refund`, `Salary` and `Investment` on an expense are exposed the same way.
+
+Fixed by surfacing the stored category as a selectable option instead of
+overwriting it. Covered by a regression test in `AddTransaction.test.js`, verified
+to fail without the fix. Note this bug predates v2 and is shared with the
+`Report` UI — wiring up edit in v2 is what made it reachable again.
+
+### Still open from the walkthrough
+
+- **Net-by-month bars ignore sign.** All three months are negative, and all three
+  render as upward bars; only the colour and the numeric label distinguish a
+  −$619 month from a +$619 one. The labels carry it for now, but a zero baseline
+  would read better.
+- **The month strip shows on Achievements**, which is all-time rather than
+  month-scoped, so the control does nothing there.
 
 ---
 
@@ -199,7 +240,7 @@ Needed before cutover:
 | Step | Deliverable | Depends on | Status |
 |---|---|---|---|
 | 1 | Dependency patches + housekeeping | — | done |
-| 2 | Flag on locally, walk the v2 UI, widen the gap list | 1 | part done — needs a signed-in walkthrough |
+| 2 | Flag on locally, walk the v2 UI, widen the gap list | 1 | done |
 | 3 | Wire transaction editing into `TransactionsView` | 2 | done |
 | 4 | Port the category breakdown | 2 | open |
 | 4b | Port PDF export | 2 | parked |
