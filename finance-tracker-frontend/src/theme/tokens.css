@@ -1,5 +1,5 @@
-/* Design tokens for the v2 UI. Scoped to .bq-root so the legacy Report.js styling
-   in App.css is untouched while both UIs coexist behind REACT_APP_UI_V2. */
+/* Design tokens for the app shell. Scoped to .bq-root; App.css still carries the
+   styling for the shared form and import modals, which are not tokenised yet. */
 
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 

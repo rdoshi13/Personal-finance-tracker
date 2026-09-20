@@ -169,12 +169,7 @@ Add screenshots in this section before sharing with recruiters.
 5. Create frontend `.env` in `finance-tracker-frontend`:
    ```env
    REACT_APP_API_BASE_URL=http://localhost:5001
-   REACT_APP_UI_V2=true
    ```
-
-   `REACT_APP_UI_V2` selects the Budget Quest UI. Leave it unset or set it to anything
-   other than `true` to serve the original `Report.js` view instead — both are compiled
-   until the rework is signed off.
 
 6. Seed XP and achievements from your existing transactions (once per account):
    ```bash
@@ -253,7 +248,6 @@ misconfiguration fails loudly instead of silently dropping mail.
 
 ```env
 REACT_APP_API_BASE_URL=https://<your-backend-project>.vercel.app
-REACT_APP_UI_V2=true
 ```
 
 ### Gamification
