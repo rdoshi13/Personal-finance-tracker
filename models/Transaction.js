@@ -57,7 +57,11 @@ const TransactionSchema = new mongoose.Schema({
     },
 });
 
-TransactionSchema.index({ userId: 1, date: -1 });
+// Keyset pagination sorts on (date desc, _id desc); without _id in the index Mongo
+// falls back to a blocking in-memory sort, which has a 32MB ceiling.
+// Note: the older { userId: 1, date: -1 } index is not dropped automatically and
+// can be removed by hand once this is deployed.
+TransactionSchema.index({ userId: 1, date: -1, _id: -1 });
 TransactionSchema.index(
     { userId: 1, importHash: 1 },
     {

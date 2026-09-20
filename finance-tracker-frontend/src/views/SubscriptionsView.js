@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useAppState } from '../state/AppStateContext';
 import { categoryColor } from '../lib/categoryColor';
 import { money } from '../lib/money';
-import { RepeatIcon } from '../components/shell/icons';
+import { ChevronIcon, RepeatIcon } from '../components/shell/icons';
 
 const CADENCE_LABEL = {
     weekly: 'Weekly',
@@ -16,14 +16,25 @@ const CADENCE_LABEL = {
 const dateLabel = (date) =>
     date ? date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '—';
 
-const Row = ({ subscription, onToggleCancelled, busy }) => {
+const Row = ({ subscription, onToggleCancelled, busy, expanded, onToggleExpanded }) => {
     const { key, name, category, amount, amountVaries, cadence, confidence,
-        monthlyCost, charges, lastCharged, nextExpected, status } = subscription;
+        monthlyCost, charges, history, lastCharged, nextExpected, status } = subscription;
     const cancelled = status === 'cancelled';
+    const panelId = `sub-history-${key.replace(/\s+/g, '-')}`;
 
     return (
         <div className={`bq-sub ${cancelled ? 'off' : ''}`}>
             <span className="bq-cn">
+                <button
+                    type="button"
+                    className="bq-disc"
+                    aria-expanded={expanded}
+                    aria-controls={panelId}
+                    aria-label={`${expanded ? 'Hide' : 'Show'} charges for ${name}`}
+                    onClick={() => onToggleExpanded(key)}
+                >
+                    <ChevronIcon size={13} style={{ transform: expanded ? 'rotate(90deg)' : 'none' }} />
+                </button>
                 <span className="bq-cdot" style={{ background: categoryColor(category) }} />
                 <span className="bq-subn">{name}</span>
                 <span className="bq-tag">{CADENCE_LABEL[cadence]}</span>
@@ -52,11 +63,28 @@ const Row = ({ subscription, onToggleCancelled, busy }) => {
                     {cancelled ? 'Restore' : 'Mark cancelled'}
                 </button>
             </span>
+
+            {expanded && (
+                <div className="bq-subh" id={panelId}>
+                    {history.map((entry, index) => (
+                        <div className="bq-subhr" key={`${entry.date.toISOString()}-${index}`}>
+                            <span>{dateLabel(entry.date)}</span>
+                            <span className="bq-grow" />
+                            {index + 1 < history.length && (
+                                <span className="bq-subhg">
+                                    {Math.round((entry.date - history[index + 1].date) / 86400000)}d later
+                                </span>
+                            )}
+                            <span className="bq-num">{money(entry.amount)}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };
 
-const Group = ({ title, note, rows, onToggleCancelled, busyKey }) => (
+const Group = ({ title, note, rows, onToggleCancelled, busyKey, expandedKeys, onToggleExpanded }) => (
     <section className="bq-panel">
         <div className="bq-ph">
             <span className="bq-pt">{title}</span>
@@ -70,6 +98,8 @@ const Group = ({ title, note, rows, onToggleCancelled, busyKey }) => (
                     subscription={s}
                     onToggleCancelled={onToggleCancelled}
                     busy={busyKey === s.key}
+                    expanded={expandedKeys.has(s.key)}
+                    onToggleExpanded={onToggleExpanded}
                 />
             ))}
         </div>
@@ -79,6 +109,13 @@ const Group = ({ title, note, rows, onToggleCancelled, busyKey }) => (
 const SubscriptionsView = ({ onAdd }) => {
     const { subscriptions, subscriptionMonthlyTotal, setSubscriptionCancelled } = useAppState();
     const [busyKey, setBusyKey] = useState(null);
+    const [expandedKeys, setExpandedKeys] = useState(() => new Set());
+
+    const toggleExpanded = (key) => setExpandedKeys((current) => {
+        const next = new Set(current);
+        if (next.has(key)) next.delete(key); else next.add(key);
+        return next;
+    });
 
     const { active, lapsed, cancelled } = useMemo(() => ({
         active: subscriptions.filter((s) => s.status === 'active'),
@@ -127,6 +164,8 @@ const SubscriptionsView = ({ onAdd }) => {
                     rows={active}
                     onToggleCancelled={handleToggle}
                     busyKey={busyKey}
+                    expandedKeys={expandedKeys}
+                    onToggleExpanded={toggleExpanded}
                 />
             )}
 
@@ -137,6 +176,8 @@ const SubscriptionsView = ({ onAdd }) => {
                     rows={lapsed}
                     onToggleCancelled={handleToggle}
                     busyKey={busyKey}
+                    expandedKeys={expandedKeys}
+                    onToggleExpanded={toggleExpanded}
                 />
             )}
 
@@ -147,6 +188,8 @@ const SubscriptionsView = ({ onAdd }) => {
                     rows={cancelled}
                     onToggleCancelled={handleToggle}
                     busyKey={busyKey}
+                    expandedKeys={expandedKeys}
+                    onToggleExpanded={toggleExpanded}
                 />
             )}
         </>

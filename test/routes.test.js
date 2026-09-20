@@ -122,7 +122,7 @@ dbTest("one user cannot read another's transactions", async () => {
     const { status, body } = await asJson(await call('/api/transactions', { token: annToken }));
 
     assert.equal(status, 200);
-    assert.equal(body.length, 0, "Ann should see none of Bob's rows");
+    assert.equal(body.transactions.length, 0, "Ann should see none of Bob's rows");
 });
 
 dbTest("one user cannot update another's transaction", async () => {
@@ -271,6 +271,144 @@ dbTest('a throttled login does not leak whether the account exists', async () =>
     assert.match(body.message, /Too many attempts/);
 });
 
+// --- pagination ------------------------------------------------------------
+
+const seedRun = async (count, startDay = 1) => {
+    await Transaction.deleteMany({ userId: ann._id });
+    await Transaction.create(Array.from({ length: count }, (_, i) => ({
+        userId: ann._id,
+        name: `Row ${String(i).padStart(3, '0')}`,
+        type: 'expense',
+        category: 'Food',
+        amount: i + 1,
+        date: new Date(Date.UTC(2026, 0, startDay + i)),
+    })));
+};
+
+/** Walks every page the way the client does and returns the flattened rows. */
+const drain = async (limit) => {
+    const seen = [];
+    let cursor;
+    let pages = 0;
+
+    for (;;) {
+        const query = cursor ? `?limit=${limit}&cursor=${encodeURIComponent(cursor)}` : `?limit=${limit}`;
+        const { body } = await asJson(await call(`/api/transactions${query}`, { token: annToken }));
+        seen.push(...body.transactions);
+        pages += 1;
+        if (!body.hasMore) return { seen, pages };
+        cursor = body.nextCursor;
+        if (pages > 50) throw new Error('did not terminate');
+    }
+};
+
+dbTest('a page is capped and reports whether more exist', async () => {
+    await seedRun(30);
+
+    const { body } = await asJson(await call('/api/transactions?limit=10', { token: annToken }));
+
+    assert.equal(body.transactions.length, 10);
+    assert.equal(body.hasMore, true);
+    assert.ok(body.nextCursor, 'a further page needs a cursor');
+});
+
+dbTest('the last page reports no more and no cursor', async () => {
+    await seedRun(5);
+
+    const { body } = await asJson(await call('/api/transactions?limit=10', { token: annToken }));
+
+    assert.equal(body.transactions.length, 5);
+    assert.equal(body.hasMore, false);
+    assert.equal(body.nextCursor, null);
+});
+
+dbTest('paging returns every row exactly once, newest first', async () => {
+    await seedRun(30);
+
+    const { seen, pages } = await drain(7);
+    const names = seen.map((t) => t.name);
+
+    assert.equal(pages, 5, '30 rows at 7 per page');
+    assert.equal(names.length, 30);
+    assert.equal(new Set(names).size, 30, 'no duplicates across pages');
+    assert.equal(names[0], 'Row 029', 'newest first');
+    assert.equal(names.at(-1), 'Row 000');
+});
+
+dbTest('a row inserted mid-scroll does not shift the pages already read', async () => {
+    // The reason for keyset over skip/limit: with skip, inserting a newer row
+    // pushes everything down one and the next page repeats a row.
+    await seedRun(20);
+
+    const first = await asJson(await call('/api/transactions?limit=5', { token: annToken }));
+    const firstNames = first.body.transactions.map((t) => t.name);
+
+    await Transaction.create({
+        userId: ann._id, name: 'Inserted newest', type: 'expense', category: 'Food',
+        amount: 99, date: new Date(Date.UTC(2026, 5, 1)),
+    });
+
+    const second = await asJson(await call(
+        `/api/transactions?limit=5&cursor=${encodeURIComponent(first.body.nextCursor)}`,
+        { token: annToken }
+    ));
+    const secondNames = second.body.transactions.map((t) => t.name);
+
+    assert.equal(secondNames.filter((n) => firstNames.includes(n)).length, 0, 'no repeats');
+    assert.ok(!secondNames.includes('Inserted newest'), 'the new row belongs before the cursor');
+});
+
+dbTest('rows sharing a date are still paged without loss', async () => {
+    // The _id tiebreak in the cursor is what makes this work.
+    await Transaction.deleteMany({ userId: ann._id });
+    const sameDay = new Date(Date.UTC(2026, 2, 15));
+    await Transaction.create(Array.from({ length: 12 }, (_, i) => ({
+        userId: ann._id, name: `Tie ${i}`, type: 'expense', category: 'Food',
+        amount: i + 1, date: sameDay,
+    })));
+
+    const { seen } = await drain(5);
+
+    assert.equal(seen.length, 12);
+    assert.equal(new Set(seen.map((t) => t.name)).size, 12);
+});
+
+dbTest('the page size is capped and bad input is refused', async () => {
+    await seedRun(3);
+
+    const huge = await asJson(await call('/api/transactions?limit=99999', { token: annToken }));
+    assert.equal(huge.status, 200, 'an over-large limit is clamped, not rejected');
+
+    for (const limit of ['0', '-1', 'abc', '1.5']) {
+        const { status } = await asJson(await call(`/api/transactions?limit=${limit}`, { token: annToken }));
+        assert.equal(status, 400, `limit=${limit} should be refused`);
+    }
+});
+
+dbTest('a corrupt cursor is refused rather than ignored', async () => {
+    await seedRun(3);
+
+    for (const cursor of ['nonsense', Buffer.from('not-a-date|abc').toString('base64url')]) {
+        const { status } = await asJson(await call(
+            `/api/transactions?cursor=${encodeURIComponent(cursor)}`, { token: annToken }
+        ));
+        assert.equal(status, 400, `cursor=${cursor} should be refused`);
+    }
+});
+
+dbTest('paging stays scoped to the caller', async () => {
+    await seedRun(6);
+    await Transaction.create({
+        userId: bob._id, name: 'Bob row', type: 'expense', category: 'Food',
+        amount: 1, date: new Date(Date.UTC(2026, 0, 3)),
+    });
+
+    const { seen } = await drain(2);
+
+    assert.equal(seen.length, 6);
+    assert.ok(!seen.some((t) => t.name === 'Bob row'));
+});
+
 // --- ordinary behaviour, so the tests above are not passing by accident ----
 
 dbTest('an authenticated user can create and read back their own transaction', async () => {
@@ -283,7 +421,7 @@ dbTest('an authenticated user can create and read back their own transaction', a
     assert.equal(created.status, 201);
 
     const listed = await asJson(await call('/api/transactions', { token: annToken }));
-    assert.ok(listed.body.some((t) => t.name === 'Coffee' && t.amount === 4.5));
+    assert.ok(listed.body.transactions.some((t) => t.name === 'Coffee' && t.amount === 4.5));
 });
 
 dbTest('a subscription cancellation round-trips for the owner only', async () => {

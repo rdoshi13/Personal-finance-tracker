@@ -213,6 +213,28 @@ describe('detectSubscriptions', () => {
         expect(monthlyTotal(rows)).toBeCloseTo(10, 2);
     });
 
+    test('carries the individual charges, newest first', () => {
+        const rows = detect([
+            charge('OpenAI ChatGPT', '2026-03-11', 21.62),
+            charge('OpenAI ChatGPT', '2026-05-11', 19.99),
+            charge('OpenAI ChatGPT', '2026-04-10', 21.62),
+        ]);
+
+        expect(rows[0].history.map((h) => h.date.toISOString().slice(0, 10)))
+            .toEqual(['2026-05-11', '2026-04-10', '2026-03-11']);
+        // The head of the history is what `amount` and `lastCharged` describe.
+        expect(rows[0].history[0].amount).toBe(19.99);
+        expect(rows[0].amount).toBe(19.99);
+        expect(rows[0].history).toHaveLength(rows[0].charges);
+    });
+
+    test('a single charge still has a one-entry history', () => {
+        const rows = detect([charge('Gym', '2026-05-12', 23, { category: 'Gym' })]);
+
+        expect(rows[0].history).toHaveLength(1);
+        expect(rows[0].history[0]).toMatchObject({ amount: 23, category: 'Gym' });
+    });
+
     test('no transactions yields an empty list, not a crash', () => {
         expect(detect([])).toEqual([]);
         expect(detectSubscriptions()).toEqual([]);
