@@ -5,9 +5,9 @@ Companion to [frontend-rework-plan.md](frontend-rework-plan.md) — that documen
 the Budget Quest rework, this one covers what has to be true before its final step
 (flag flip, delete `Report.js`) is safe.
 
-**Status:** Phases 1, 2 and 4 done. Phase 3 done apart from PDF export, which is
-parked by decision. Only the cutover itself (step 6) and the deferred Phase 5 work
-remain.
+**Status:** Cutover complete. Phases 1–4 done and `Report.js` deleted. PDF export
+is parked by decision and is the one v1 capability v2 does not have. Phase 5 work
+(pagination, CRA migration) remains deferred.
 
 ---
 
@@ -290,6 +290,51 @@ Two things worth keeping in mind about how these are written:
 
 ---
 
+## Phase 6 — Cutover ✅
+
+Production was **already serving v2** when this ran — `budget.rishabhdoshi.me`
+rendered `.bq-root` and no `.App`, so `REACT_APP_UI_V2=true` was already set in
+Vercel. The flag-flip and soak half of the cutover had effectively happened, which
+made the deletion a no-op for anyone using the app rather than a live UI swap.
+
+Deleted, all orphaned with `Report.js` as their only consumer:
+
+| Removed | Lines |
+|---|---|
+| `src/Report.js` | 851 |
+| `src/Report.test.js` | 403 |
+| `src/components/MonthlyReportSection.js` | 199 |
+| `src/components/MonthlySummaryCards.js` | 76 |
+| `src/components/TransactionsSection.js` | 237 |
+| `getMonthlyReport` in `api/transactions.js` | 3 |
+
+`App.js` drops the flag branch and renders `BudgetQuest` directly. `App.test.js`,
+`.env`, `.env.example`, the README setup steps and a stale comment in `tokens.css`
+all lose their `REACT_APP_UI_V2` references — the flag no longer exists anywhere in
+the repo.
+
+**The bundle fell from 195.58 kB to 61.81 kB gzipped, −134.54 kB (69%)**, because
+`jspdf` was imported only by `Report.js` and now falls out of the graph entirely.
+
+### Deliberately kept
+
+- **`jspdf` stays in `package.json`.** PDF export is parked, not cancelled, and the
+  package is no longer in the bundle, so removing and re-adding it would be churn.
+  Its `fflate` override stays with it.
+- **`GET /api/transactions/report/:year/:month` stays.** Nothing calls it now that
+  v2 derives the breakdown client-side, but `AGENTS.md` says to preserve API routes
+  unless removing one is explicitly asked for.
+- **`App.css` stays.** `AddTransaction` and `ImportStatementModal` still style off
+  it. Both were opened in the browser after the deletion to confirm. Pruning the
+  now-dead `report-*` and `summary-*` rules out of it is a follow-up.
+
+### Left over
+
+`REACT_APP_UI_V2` is still set in Vercel and is now read by nothing. Harmless, but
+worth deleting from the project's environment variables.
+
+---
+
 ## Phase 5 — Deferred
 
 - **Unpaginated `GET /api/transactions`.** Already flagged in the rework plan's risks.
@@ -312,7 +357,7 @@ Two things worth keeping in mind about how these are written:
 | 4 | Port the category breakdown | 2 | done |
 | 4b | Port PDF export | 2 | parked |
 | 5 | v2 component tests replacing `Report.test.js` | 3, 4 | done |
-| 6 | Flip flag in Vercel, watch logs, then delete `Report.js`, `Report.test.js`, rewrite `App.test.js` | 5 | open |
+| 6 | Flip flag in Vercel, watch logs, then delete `Report.js`, `Report.test.js`, rewrite `App.test.js` | 5 | done |
 | 7 | Pagination; CRA migration | — | open |
 
 Step 7 is independent and can run whenever.
