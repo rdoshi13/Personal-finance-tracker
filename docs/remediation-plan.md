@@ -325,13 +325,17 @@ the repo.
   v2 derives the breakdown client-side, but `AGENTS.md` says to preserve API routes
   unless removing one is explicitly asked for.
 - **`App.css` stays.** `AddTransaction` and `ImportStatementModal` still style off
-  it. Both were opened in the browser after the deletion to confirm. Pruning the
-  now-dead `report-*` and `summary-*` rules out of it is a follow-up.
+  it. Both were opened in the browser after the deletion to confirm. The now-dead
+  `report-*` and `summary-*` rules were pruned in #16 (93 rules, 1117 -> 509
+  lines, CSS bundle 8.29 -> 6.89 kB).
 
 ### Left over
 
-`REACT_APP_UI_V2` is still set in Vercel and is now read by nothing. Harmless, but
-worth deleting from the project's environment variables.
+Nothing. `REACT_APP_UI_V2` was deleted from the frontend project's Vercel
+environment on 2026-09-20, once a grep confirmed only these plan docs still
+mentioned it. Verified by building the frontend with the variable unset, as
+Vercel now will: the build succeeds, ships the `bq-root` shell, and contains no
+reference to the flag. `REACT_APP_API_BASE_URL` is the only variable left.
 
 ---
 
