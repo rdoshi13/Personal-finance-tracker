@@ -89,7 +89,7 @@
 .bq-cmdbtn:hover { border-color: var(--line-2); background: var(--panel-3); }
 .bq-cmdbtn .g { flex: 1; text-align: left; }
 .bq-ib {
-  width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center;
+  width: 32px; height: 32px; padding: 0; border-radius: 8px; display: grid; place-items: center;
   border: 1px solid var(--line); background: var(--panel-2); color: var(--ink-2);
   transition: background 180ms ease, color 180ms ease;
 }
