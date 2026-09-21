@@ -99,16 +99,35 @@ ul {
   padding: 0;
 }
 
+/*
+ * Only the behavioural default belongs on the bare element. The v1 look below
+ * is scoped, because as a global rule it reached Budget Quest components too:
+ * its 16px horizontal padding silently floored .bq-ib to 34x32 instead of
+ * square, and .bq-disc to 32x18 instead of 18x18, since both size themselves
+ * with width/height and declare no padding of their own.
+ */
 button {
+  cursor: pointer;
+}
+
+/*
+ * The v1 button look, kept for the parts still styled that way: the auth
+ * screens, the add/edit form and the import modal. Nothing under these
+ * wrappers carries a bq- class, so the two vocabularies stay separate.
+ *
+ * :where() so the wrapper adds no specificity -- these must keep exactly the
+ * weight the bare `button` selector had, or they would start beating
+ * .secondary-button and .modal-close-button, which are meant to override them.
+ */
+:where(.auth-section, .transaction-form, .form-modal-content) button {
   background-color: var(--button-primary);
   color: white;
   border: none;
   padding: 8px 16px;
   border-radius: 5px;
-  cursor: pointer;
 }
 
-button:hover {
+:where(.auth-section, .transaction-form, .form-modal-content) button:hover {
   background-color: var(--button-primary-hover);
 }
 
@@ -133,7 +152,7 @@ button:hover {
   padding: 10px 20px;
 }
 
-button:disabled {
+:where(.auth-section, .transaction-form, .form-modal-content) button:disabled {
   background-color: var(--button-disabled);
   cursor: not-allowed;
 }

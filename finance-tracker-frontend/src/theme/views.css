@@ -54,7 +54,7 @@
 .bq-sub.off { opacity: .55; }
 .bq-sub.off .bq-subn { text-decoration: line-through; }
 .bq-subn { font-weight: 600; }
-.bq-disc { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; border: 0; background: none; color: var(--ink-3); cursor: pointer; }
+.bq-disc { display: inline-grid; place-items: center; width: 18px; height: 18px; padding: 0; border-radius: 5px; border: 0; background: none; color: var(--ink-3); cursor: pointer; }
 .bq-disc:hover { color: var(--ink-1); background: var(--panel-3); }
 .bq-disc svg { transition: transform 160ms ease; }
 /* Charge history, revealed per row. Indented past the disclosure and dot so it
