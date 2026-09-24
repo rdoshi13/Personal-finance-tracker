@@ -15,6 +15,10 @@ const shortDate = (value) =>
 
 const yearOf = (value) => new Date(value).getUTCFullYear();
 
+// money() drops the sign. A card balance below zero is a credit the issuer owes
+// you, and must not read as a debt.
+const balance = (value) => (Number(value) < 0 ? `${money(value)} credit` : money(value));
+
 /**
  * One card: its latest statement's figures, then payments, spending and the
  * statement history. The balance and due date come from the statement snapshot,
@@ -42,7 +46,7 @@ const CardSection = ({ statements, rows, grown }) => {
             <div className="bq-hero">
                 <section className="bq-hcard">
                     <div className="bq-eyebrow">{latest.productName || 'Card'} · ••{latest.last4}</div>
-                    <h1 className="bq-hnum bq-num">{money(latest.newBalance)}</h1>
+                    <h1 className={`bq-hnum bq-num ${latest.newBalance < 0 ? 'bq-pos' : ''}`}>{balance(latest.newBalance)}</h1>
                     <p className="bq-hsub">
                         Balance on the statement that closed <b>{dateLabel(latest.closingDate)}</b>.
                         {latest.dueDate && (
@@ -143,7 +147,7 @@ const CardSection = ({ statements, rows, grown }) => {
                                 <td className="bq-tamt bq-num">{money(s.purchases)}</td>
                                 <td className={`bq-tamt bq-num ${s.interest > 0 ? 'bq-neg' : ''}`}>{money(s.interest)}</td>
                                 <td className="bq-tamt bq-num bq-xfer">{money(Math.abs(s.payments))}</td>
-                                <td className="bq-tamt bq-num">{money(s.newBalance)}</td>
+                                <td className="bq-tamt bq-num">{balance(s.newBalance)}</td>
                             </tr>
                         ))}
                     </tbody>

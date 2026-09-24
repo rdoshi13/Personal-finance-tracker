@@ -133,3 +133,12 @@ test('a failed load says so instead of claiming there are no statements', () => 
     expect(screen.getByText('Card statements could not be loaded')).toBeInTheDocument();
     expect(screen.queryByText('No card statements yet')).not.toBeInTheDocument();
 });
+
+test('a balance in credit reads as a credit, not as money owed', () => {
+    mockState.cardStatements = [statement({ newBalance: -120 })];
+    render(<CardsView onImport={jest.fn()} />);
+
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('$120.00 credit');
+    const rows = within(screen.getByText('Statements', { selector: '.bq-pt' }).closest('.bq-panel')).getAllByRole('row');
+    expect(rows[1]).toHaveTextContent('$120.00 credit');
+});

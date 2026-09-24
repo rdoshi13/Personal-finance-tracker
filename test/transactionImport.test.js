@@ -584,3 +584,20 @@ test("pdf-parse's page separator is not glued onto the last row of a page", () =
     assert.equal(rows[2].description, 'CORNER BAKERY 555-123-4567 NY');
     assert.equal(rows[2].name, 'Corner Bakery');
 });
+
+test("only Chase's own fees are Interest & Fees, not a merchant with 'fee' in its name", () => {
+    const { rows } = parseChaseCardStatementText(cardStatement({
+        rows: [
+            '12/20 AUTOMATIC PAYMENT - THANK YOU -40.00',
+            '12/22 STATEMENT CREDIT -20.00',
+            '12/06 AZ MVD REGISTRATION FEE 602-255-0072 AZ 30.00',
+            '01/03 LATE FEE 20.00',
+            '01/07 PURCHASE INTEREST CHARGE 2.50',
+        ],
+    }));
+    const [, , mvd, late, interest] = rows;
+
+    assert.notEqual(mvd.category, 'Interest & Fees');
+    assert.equal(late.category, 'Interest & Fees');
+    assert.equal(interest.category, 'Interest & Fees');
+});

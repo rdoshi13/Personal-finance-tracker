@@ -752,3 +752,60 @@ dbTest('two identical card charges on one statement are both stored', async () =
     assert.equal(body.imported, 2);
     assert.equal(body.skipped, 0);
 });
+
+// --- edits and transfer links --------------------------------------------------
+
+const seedPair = async () => {
+    await Transaction.deleteMany({ userId: ann._id });
+    const [card, bank] = await Transaction.create([
+        { userId: ann._id, name: 'Card Payment Received', type: 'transfer', category: 'Credit Card Payment', amount: 500, date: new Date('2025-07-20T12:00:00Z'), accountType: 'credit_card', sourceAccount: 'Chase ••1301' },
+        { userId: ann._id, name: 'Chase Card Payment', type: 'transfer', category: 'Credit Card Payment', amount: 500, date: new Date('2025-07-20T12:00:00Z'), description: 'Payment To Chase Card Ending IN 1301' },
+    ]);
+    const { matchCardPayments } = require('../lib/transferMatch');
+    assert.equal(await matchCardPayments(ann._id), 1);
+    return { card, bank };
+};
+
+const linkOf = async (id) => (await Transaction.findById(id).lean()).linkedTransactionId;
+
+dbTest('renaming one half of a matched payment keeps the pair', async () => {
+    const { card, bank } = await seedPair();
+
+    const { status, body } = await asJson(await call(`/api/transactions/${bank._id}`, {
+        token: annToken, method: 'PUT', body: { name: 'Paid the card' },
+    }));
+
+    assert.equal(status, 200);
+    assert.equal(body.linkedTransactionId, String(card._id));
+    assert.equal(String(await linkOf(card._id)), String(bank._id));
+});
+
+dbTest('changing the amount or type of one half breaks the pair on both sides', async () => {
+    for (const edit of [{ amount: 50 }, { type: 'expense' }]) {
+        const { card, bank } = await seedPair();
+
+        const { body } = await asJson(await call(`/api/transactions/${bank._id}`, {
+            token: annToken, method: 'PUT', body: edit,
+        }));
+
+        assert.equal(body.linkedTransactionId, undefined, JSON.stringify(edit));
+        assert.equal(await linkOf(card._id), undefined, JSON.stringify(edit));
+    }
+});
+
+dbTest('correcting a debit that paired wrongly lets it pair with its real partner', async () => {
+    const { card, bank } = await seedPair();
+    // A second card payment of $50 that nothing has paired with yet.
+    const other = await Transaction.create({
+        userId: ann._id, name: 'Card Payment Received', type: 'transfer', category: 'Credit Card Payment',
+        amount: 50, date: new Date('2025-07-21T12:00:00Z'), accountType: 'credit_card', sourceAccount: 'Chase ••1301',
+    });
+
+    // The bank debit was really $50: correcting it moves the pair.
+    const { body } = await asJson(await call(`/api/transactions/${bank._id}`, {
+        token: annToken, method: 'PUT', body: { amount: 50 },
+    }));
+
+    assert.equal(body.linkedTransactionId, String(other._id));
+    assert.equal(await linkOf(card._id), undefined);
+});

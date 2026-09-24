@@ -6,7 +6,7 @@ const router = express.Router();
 const Transaction = require('../models/Transaction');
 const ImportBatch = require('../models/ImportBatch');
 const CardStatement = require('../models/CardStatement');
-const { matchCardPayments } = require('../lib/transferMatch');
+const { matchCardPayments, recheckLinkAfterEdit } = require('../lib/transferMatch');
 const {
     MAX_IMPORT_ROWS,
     assertCardStatementBalances,
@@ -86,6 +86,13 @@ const updateTransactionById = async (req, res) => {
 
         if (!updatedTransaction) {
             return res.status(404).json({ message: 'Transaction not found' });
+        }
+
+        // An edit can invalidate a card-payment pair, or make a row pairable. The
+        // link may have changed, so the row is re-read before it is returned.
+        if (updatedTransaction.linkedTransactionId || updatedTransaction.type === 'transfer') {
+            await recheckLinkAfterEdit(userId, updatedTransaction._id);
+            return res.json(await Transaction.findById(updatedTransaction._id));
         }
 
         res.json(updatedTransaction);
