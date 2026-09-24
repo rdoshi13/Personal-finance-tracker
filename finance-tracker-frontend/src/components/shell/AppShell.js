@@ -41,11 +41,23 @@ const AppShell = () => {
         );
     }, [closeForm, reload, refreshProgress, pushToast]);
 
-    const handleImported = useCallback(async () => {
-        setImporting(false);
+    // A warning means the rows were imported but a follow-up step (the card
+    // statement summary, or pairing payments with checking) failed. A toast would
+    // vanish before it could be read, so the modal stays open showing it.
+    const handleImported = useCallback(async (imported, result = {}) => {
+        const hasWarnings = Boolean(result.warnings?.length);
+        if (!hasWarnings) setImporting(false);
         await reload();
         await refreshProgress();
-        pushToast('Statement imported', 'New transactions are in', 'xp');
+        if (hasWarnings) return;
+        const matched = result.transfersMatched;
+        pushToast(
+            'Statement imported',
+            matched > 0
+                ? `Matched ${matched} card ${matched === 1 ? 'payment' : 'payments'} to checking`
+                : 'New transactions are in',
+            'xp'
+        );
     }, [reload, refreshProgress, pushToast]);
 
     // Shortcuts are ignored while typing so '/' and 'n' stay usable inside inputs.

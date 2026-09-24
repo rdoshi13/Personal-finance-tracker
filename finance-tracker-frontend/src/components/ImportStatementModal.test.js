@@ -110,7 +110,11 @@ describe('ImportStatementModal', () => {
         expect(batch).toMatchObject({ filename: 'statement.csv', fileHash: 'file-hash' });
 
         expect(await screen.findByText('Imported 1, skipped 1, failed 0.')).toBeInTheDocument();
-        expect(onImported).toHaveBeenCalledWith([{ _id: 'new-1' }]);
+        // The whole result goes along too, so the shell can show matches and warnings.
+        expect(onImported).toHaveBeenCalledWith(
+            [{ _id: 'new-1' }],
+            expect.objectContaining({ imported: 1, skipped: 1, failed: 0 })
+        );
     });
 
     test('correcting an invalid row makes it importable', async () => {

@@ -76,7 +76,7 @@ const ImportStatementModal = ({ onClose, onImported }) => {
                 statement,
             });
             setSummary(data);
-            onImported(data.transactions || []);
+            onImported(data.transactions || [], data);
         } catch (importError) {
             setError(importError.message || 'Failed to import transactions');
         } finally {

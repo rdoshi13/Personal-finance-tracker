@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
+    buildImportHash,
     cleanChaseTransactionName,
     isChaseCardStatementText,
     parseChaseCardStatementText,
@@ -489,4 +490,58 @@ test('uber eats is food even though the line also says uber', () => {
     assert.equal(cleanChaseTransactionName('Card Purchase 07/23 UBER *EATS HELP.UBER.COM CA Card 6758'), 'Uber Eats');
     assert.equal(suggestCategory('uber eats uber *eats help.uber.com ca', 'expense'), 'Food');
     assert.equal(suggestCategory('uber uber *trip help.uber.com ca', 'expense'), 'Transport');
+});
+
+test('two identical charges on one statement both import, with distinct hashes', () => {
+    const { rows } = parseChaseCardStatementText(cardStatement({
+        rows: [
+            '12/20 AUTOMATIC PAYMENT - THANK YOU -40.00',
+            '12/22 STATEMENT CREDIT -20.00',
+            '12/06 METRO TRANSIT NY 15.00',
+            '12/06 METRO TRANSIT NY 15.00',
+            '01/03 SKYWAY AIRLINES 0012345 SKYWAY.COM TX 20.00',
+            '01/07 PURCHASE INTEREST CHARGE 2.50',
+        ],
+    }));
+    const [first, second] = rows.filter((row) => /metro/i.test(row.description));
+
+    assert.equal(first.occurrence, undefined);
+    assert.equal(second.occurrence, 2);
+    assert.notEqual(first.importHash, second.importHash);
+    // The first copy hashes exactly as before occurrences existed.
+    assert.equal(first.importHash, buildImportHash(first));
+
+    // And the commit step recomputes the same hashes from what the client sends back.
+    assert.equal(normalizeSubmissionRow(first).importHash, first.importHash);
+    assert.equal(normalizeSubmissionRow(second).importHash, second.importHash);
+});
+
+test('section and page headers inside the activity block are not glued onto a row', () => {
+    const { rows } = parseChaseCardStatementText(cardStatement({
+        rows: [
+            'PAYMENTS AND OTHER CREDITS',
+            '12/20 AUTOMATIC PAYMENT - THANK YOU -40.00',
+            '12/22 STATEMENT CREDIT -20.00',
+            'PURCHASE',
+            '12/06 CORNER BAKERY 555-123-4567 NY 30.00',
+            'Page 2 of 3 Statement Date: 01/07/26 JANE DOE',
+            'Date of',
+            'Transaction Merchant Name or Transaction Description $ Amount',
+            'ACCOUNT ACTIVITY (CONTINUED)',
+            '01/03 SKYWAY AIRLINES 0012345 SKYWAY.COM TX 20.00',
+            '010526 1 K JFK LAX',
+            'FEES CHARGED',
+            'TOTAL FEES FOR THIS PERIOD $0.00',
+            'INTEREST CHARGED',
+            '01/07 PURCHASE INTEREST CHARGE 2.50',
+        ],
+    }));
+
+    assert.deepEqual(rows.map((row) => row.description), [
+        'AUTOMATIC PAYMENT - THANK YOU',
+        'STATEMENT CREDIT',
+        'CORNER BAKERY 555-123-4567 NY',
+        'SKYWAY AIRLINES 0012345 SKYWAY.COM TX 010526 1 K JFK LAX',
+        'PURCHASE INTEREST CHARGE',
+    ]);
 });

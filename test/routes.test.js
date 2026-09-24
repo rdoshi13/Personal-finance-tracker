@@ -736,3 +736,19 @@ dbTest('payments are never paired across users', async () => {
     assert.equal(await matchCardPayments(ann._id), 0);
     assert.equal(await Transaction.countDocuments({ linkedTransactionId: { $exists: true } }), 0);
 });
+
+dbTest('two identical card charges on one statement are both stored', async () => {
+    await Transaction.deleteMany({ userId: ann._id });
+    const tap = {
+        rowNumber: 1, date: '2025-11-06', name: 'Metro Transit', description: 'METRO TRANSIT NY', amount: 2.9,
+        type: 'expense', category: 'Transport', accountType: 'credit_card', sourceAccount: 'Chase ••4242',
+    };
+
+    const { body } = await asJson(await call('/api/transactions/import', {
+        token: annToken, method: 'POST',
+        body: { rows: [tap, { ...tap, rowNumber: 2, occurrence: 2 }], batch: { filename: 'card.pdf', fileHash: 'taps' } },
+    }));
+
+    assert.equal(body.imported, 2);
+    assert.equal(body.skipped, 0);
+});
