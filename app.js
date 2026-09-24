@@ -8,6 +8,7 @@ const transactionRoutes = require('./routes/transactionRoutes');
 const budgetRoutes = require('./routes/budgetRoutes');
 const progressRoutes = require('./routes/progressRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
+const cardRoutes = require('./routes/cardRoutes');
 const { connectToDatabase } = require('./lib/mongo');
 const { requireAuth } = require('./middleware/auth');
 
@@ -96,6 +97,7 @@ app.use('/api/transactions', requireAuth, transactionRoutes);
 app.use('/api/budgets', requireAuth, budgetRoutes);
 app.use('/api/progress', requireAuth, progressRoutes);
 app.use('/api/subscriptions', requireAuth, subscriptionRoutes);
+app.use('/api/cards', requireAuth, cardRoutes);
 
 app.use((error, req, res, next) => {
     if (error && error.message === 'Not allowed by CORS') {

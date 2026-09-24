@@ -3,6 +3,7 @@ import { deleteTransaction, getTransactions, getYearSummary } from '../api/trans
 import { getBudgets, toBudgetMap } from '../api/budgets';
 import { claimQuest, getProgress, getQuests } from '../api/progress';
 import { getSubscriptionStates, setSubscriptionCancelled, toCancelledKeys } from '../api/subscriptions';
+import { getCardStatements } from '../api/cards';
 import { detectSubscriptions, monthlyTotal } from '../lib/subscriptions';
 import { periodKeyOf, summarize } from '../lib/money';
 
@@ -35,6 +36,7 @@ export const AppStateProvider = ({ children, user, onLogout }) => {
     const [transactions, setTransactions] = useState([]);
     const [budgets, setBudgets] = useState({});
     const [cancelledSubscriptions, setCancelledSubscriptions] = useState([]);
+    const [cardStatements, setCardStatements] = useState([]);
     const [progress, setProgress] = useState(null);
     const [quests, setQuests] = useState([]);
     const [summary, setSummary] = useState([]);
@@ -70,17 +72,21 @@ export const AppStateProvider = ({ children, user, onLogout }) => {
         setLoading(true);
         setError('');
         try {
-            const [txns, budgetPayload, progressPayload, subscriptionPayload] = await Promise.all([
+            const [txns, budgetPayload, progressPayload, subscriptionPayload, statements] = await Promise.all([
                 getTransactions(),
                 getBudgets().catch(() => ({ budgets: [] })),
                 getProgress().catch(() => null),
                 getSubscriptionStates().catch(() => ({ cancelled: [] })),
+                // null, not [], on failure: the Cards view must be able to tell
+                // "could not load" from "no statements imported yet".
+                getCardStatements().catch(() => null),
             ]);
             const list = Array.isArray(txns) ? txns : [];
             setTransactions(list);
             setBudgets(toBudgetMap(budgetPayload));
             setProgress(progressPayload);
             setCancelledSubscriptions(toCancelledKeys(subscriptionPayload));
+            setCardStatements(statements);
             setPeriod((current) => (periodTouched ? current : pickInitialPeriod(list)));
         } catch (loadError) {
             setError(loadError.message || 'Failed to load your data');
@@ -211,6 +217,7 @@ export const AppStateProvider = ({ children, user, onLogout }) => {
         transactions, monthTransactions, categories, budgets, setBudgets,
         progress, quests, summary, totals, previousTotals,
         subscriptions, subscriptionMonthlyTotal, setSubscriptionCancelled: setSubscriptionCancelledState,
+        cardStatements,
         period, goToPeriod, stepPeriod, periodsWithData, latestPeriodWithData, year,
         view, setView, filters, setFilters, sort, setSort,
         loading, error, theme, setTheme,
@@ -218,7 +225,7 @@ export const AppStateProvider = ({ children, user, onLogout }) => {
     }), [
         user, onLogout, transactions, monthTransactions, categories, budgets, progress, quests,
         summary, totals, previousTotals, subscriptions, subscriptionMonthlyTotal,
-        setSubscriptionCancelledState, period, goToPeriod, stepPeriod, periodsWithData,
+        setSubscriptionCancelledState, cardStatements, period, goToPeriod, stepPeriod, periodsWithData,
         latestPeriodWithData, year, view, filters, sort, loading, error, theme, toasts,
         pushToast, claim, removeTransaction, loadCore, refreshProgress,
     ]);

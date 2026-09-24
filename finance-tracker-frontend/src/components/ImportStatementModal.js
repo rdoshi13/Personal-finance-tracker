@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { importTransactions, previewTransactionImport } from '../api/transactions';
 
-const CATEGORY_OPTIONS = ['Salary', 'Freelance', 'Investment', 'Interest', 'Bonus', 'Gift', 'Tax Refund', 'Groceries', 'Housing', 'Transport', 'Health', 'Food', 'Entertainment', 'Transfer', 'Credit Card Payment', 'Subscription', 'Streaming', 'Software', 'Utilities', 'Cloud', 'Gym', 'Membership', 'Misc'];
+const CATEGORY_OPTIONS = ['Salary', 'Freelance', 'Investment', 'Interest', 'Bonus', 'Gift', 'Tax Refund', 'Rewards', 'Groceries', 'Housing', 'Transport', 'Travel', 'Health', 'Food', 'Entertainment', 'Interest & Fees', 'Transfer', 'Credit Card Payment', 'Subscription', 'Streaming', 'Software', 'Utilities', 'Cloud', 'Gym', 'Membership', 'Misc'];
 const TYPE_OPTIONS = ['expense', 'income', 'subscription', 'transfer'];
 
 const getRowKey = (row, index) => row.importHash || `${row.rowNumber || 'row'}-${index}`;
@@ -22,6 +22,10 @@ const ImportStatementModal = ({ onClose, onImported }) => {
     const [summary, setSummary] = useState(null);
 
     const importableCount = useMemo(() => rows.filter(isImportableRow).length, [rows]);
+    const statement = previewData?.statement || null;
+    // A card statement can be committed with no new rows: re-importing it refreshes
+    // the saved summary and retries payment matching.
+    const canImport = importableCount > 0 || Boolean(statement);
 
     const handleFileChange = async (event) => {
         const file = event.target.files?.[0];
@@ -69,6 +73,7 @@ const ImportStatementModal = ({ onClose, onImported }) => {
                 filename: previewData?.filename || '',
                 fileHash: previewData?.fileHash || '',
                 sourceAccount,
+                statement,
             });
             setSummary(data);
             onImported(data.transactions || []);
@@ -125,13 +130,26 @@ const ImportStatementModal = ({ onClose, onImported }) => {
                             <span>Invalid: {previewData.summary?.invalid || 0}</span>
                         </div>
                     )}
+                    {statement && (
+                        <p className="filter-summary" aria-label="Card statement">
+                            {statement.productName} ••{statement.last4} · {statement.openingDate} to {statement.closingDate}
+                            {' '}· new balance ${Number(statement.newBalance).toFixed(2)} · balances ✓.
+                            {' '}The account comes from the statement, not the field above.
+                        </p>
+                    )}
                     {summary && (
                         <p className="success-text">
                             Imported {summary.imported}, skipped {summary.skipped}, failed {summary.failed}.
+                            {summary.transfersMatched > 0 && (
+                                <> Matched {summary.transfersMatched} card {summary.transfersMatched === 1 ? 'payment' : 'payments'} to checking.</>
+                            )}
                         </p>
                     )}
+                    {summary?.warnings?.map((warning) => (
+                        <p className="error-text" key={warning}>{warning}</p>
+                    ))}
 
-                    {rows.length > 0 && (
+                    {(rows.length > 0 || statement) && (
                         <>
                             <div className="import-table-wrap">
                                 <table className="import-table">
@@ -218,10 +236,13 @@ const ImportStatementModal = ({ onClose, onImported }) => {
                             <div className="form-buttons">
                                 <button
                                     type="button"
-                                    disabled={isImporting || importableCount === 0}
+                                    disabled={isImporting || !canImport}
                                     onClick={handleImport}
                                 >
-                                    {isImporting ? 'Importing...' : `Import ${importableCount} transactions`}
+                                    {isImporting && 'Importing...'}
+                                    {!isImporting && (importableCount > 0 || !statement
+                                        ? `Import ${importableCount} transactions`
+                                        : 'Update statement')}
                                 </button>
                                 <button type="button" className="secondary-button" onClick={onClose} disabled={isImporting}>
                                     Close

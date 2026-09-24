@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
     cleanChaseTransactionName,
+    isChaseCardStatementText,
+    parseChaseCardStatementText,
     normalizeChaseStatementText,
     normalizeCsvBuffer,
     normalizeSubmissionRow,
@@ -315,4 +317,176 @@ test('submission accepts transfer and a known accountType, and drops an unknown 
     const badType = normalizeSubmissionRow({ ...base, type: 'gift' });
     assert.equal(badType.status, 'invalid');
     assert.deepEqual(badType.errors, ['Invalid transaction type']);
+});
+
+// --- credit card statements ------------------------------------------------------
+
+// Synthetic, shaped like the pdf-parse output of a real Chase card statement. The
+// figures balance: 100.00 - 60.00 + 50.00 + 2.50 = 92.50, and the rows sum to -7.50.
+const cardStatement = (overrides = {}) => {
+    const rows = overrides.rows || [
+        '12/20 AUTOMATIC PAYMENT - THANK YOU -40.00',
+        '12/22 STATEMENT CREDIT -20.00',
+        '12/06 CORNER BAKERY 555-123-4567 NY 30.00',
+        '01/03 SKYWAY AIRLINES 0012345 SKYWAY.COM TX 20.00',
+        '010526 1 K JFK LAX',
+        '01/07 PURCHASE INTEREST CHARGE 2.50',
+    ];
+    return [
+        'Payment Due Date: 02/04/26',
+        'New Balance: $92.50',
+        'Minimum Payment Due: $25.00',
+        'Account Number: XXXX XXXX XXXX 4242',
+        'New Balance $92.50',
+        `Previous Balance ${overrides.previous || '$100.00'}`,
+        'Payment, Credits -$60.00',
+        'Purchases +$50.00',
+        'Cash Advances $0.00',
+        'Balance Transfers $0.00',
+        'Fees Charged $0.00',
+        'Interest Charged +$2.50',
+        'Opening/Closing Date 12/08/25 - 01/07/26',
+        'Credit Limit $1,000',
+        'ACCOUNT SUMMARY',
+        'CHASE SAPPHIRE TEST',
+        'Date of',
+        'Transaction Merchant Name or Transaction Description $ Amount',
+        ...rows,
+        'TOTAL INTEREST FOR THIS PERIOD $2.50',
+        'Purchases 24.99%(v)(d) $80.00 $2.50',
+    ].join('\n');
+};
+
+test('a card statement is recognised, and a checking statement is not', () => {
+    assert.equal(isChaseCardStatementText(cardStatement()), true);
+    assert.equal(isChaseCardStatementText([
+        'CHECKING SUMMARY', 'Beginning Balance $10.00', '03/02 Card Purchase Coffee -2.00 8.00',
+    ].join('\n')), false);
+});
+
+test('the card statement summary is read as printed', () => {
+    const { statement } = parseChaseCardStatementText(cardStatement());
+
+    assert.deepEqual(statement, {
+        issuer: 'Chase',
+        productName: 'Chase Sapphire Test',
+        last4: '4242',
+        sourceAccount: 'Chase ••4242',
+        openingDate: '2025-12-08',
+        closingDate: '2026-01-07',
+        dueDate: '2026-02-04',
+        minimumPayment: 25,
+        creditLimit: 1000,
+        purchaseApr: 24.99,
+        previousBalance: 100,
+        payments: -60,
+        purchases: 50,
+        cashAdvances: 0,
+        balanceTransfers: 0,
+        fees: 0,
+        interest: 2.5,
+        newBalance: 92.5,
+    });
+});
+
+test('card rows flip sign by meaning: charges spend, payments transfer, credits earn', () => {
+    const { rows } = parseChaseCardStatementText(cardStatement());
+    const [payment, credit, bakery, flight, interest] = rows;
+
+    assert.equal(rows.length, 5);
+    rows.forEach((row) => {
+        assert.equal(row.accountType, 'credit_card');
+        assert.equal(row.sourceAccount, 'Chase ••4242');
+        assert.equal(row.status, 'ready');
+        assert.ok(row.amount > 0, 'amounts are stored as magnitudes');
+        assert.ok(row.importHash);
+    });
+
+    assert.equal(payment.type, 'transfer');
+    assert.equal(payment.category, 'Credit Card Payment');
+    assert.equal(payment.name, 'Card Payment Received');
+    assert.equal(payment.amount, 40);
+
+    assert.equal(credit.type, 'income');
+    assert.equal(credit.category, 'Rewards');
+    assert.equal(credit.name, 'Rewards Redemption');
+
+    assert.equal(bakery.type, 'expense');
+    assert.equal(bakery.name, 'Corner Bakery');
+    assert.equal(bakery.amount, 30);
+
+    assert.equal(flight.category, 'Travel');
+    assert.equal(flight.description, 'SKYWAY AIRLINES 0012345 SKYWAY.COM TX 010526 1 K JFK LAX',
+        'a wrapped line joins the row above it');
+
+    assert.equal(interest.type, 'expense');
+    assert.equal(interest.category, 'Interest & Fees');
+    assert.equal(interest.amount, 2.5);
+});
+
+test('card row years come from the closing date, across the new year', () => {
+    const { rows } = parseChaseCardStatementText(cardStatement());
+    const dates = rows.map((row) => row.date);
+
+    // 12/06 is before the period opens (12/08) but still 2025; 01/xx is 2026.
+    assert.deepEqual(dates, ['2025-12-20', '2025-12-22', '2025-12-06', '2026-01-03', '2026-01-07']);
+});
+
+test('a merchant refund on the card is income in the merchant category', () => {
+    const { rows } = parseChaseCardStatementText(cardStatement({
+        rows: [
+            '12/20 AUTOMATIC PAYMENT - THANK YOU -40.00',
+            '12/22 STATEMENT CREDIT -20.00',
+            '12/23 WALMART.COM 800-925-6278 AR -5.00',
+            '12/24 CORNER BAKERY 555-123-4567 NY 55.00',
+            '01/07 PURCHASE INTEREST CHARGE 2.50',
+        ],
+    }));
+    const refund = rows.find((row) => row.name === 'Walmart');
+
+    assert.equal(refund.type, 'income');
+    assert.equal(refund.category, 'Groceries');
+    assert.equal(refund.amount, 5);
+});
+
+test('card rows that do not add up to the balance change refuse the whole statement', () => {
+    const misread = cardStatement({
+        rows: [
+            '12/20 AUTOMATIC PAYMENT - THANK YOU -40.00',
+            '12/22 STATEMENT CREDIT -20.00',
+            '12/06 CORNER BAKERY 555-123-4567 NY 30.00',
+            '01/07 PURCHASE INTEREST CHARGE 2.50',
+        ],
+    });
+
+    assert.throws(() => parseChaseCardStatementText(misread), (error) => {
+        assert.equal(error.statusCode, 400);
+        assert.match(error.message, /do not add up: they total \$-27\.50, but the balance moved by \$-7\.50/);
+        return true;
+    });
+});
+
+test('a card summary that does not balance is refused before any row is read', () => {
+    assert.throws(() => parseChaseCardStatementText(cardStatement({ previous: '$101.00' })), (error) => {
+        assert.equal(error.statusCode, 400);
+        assert.match(error.message, /does not balance/);
+        return true;
+    });
+});
+
+test('a card row keeps the account from its statement over the form field', () => {
+    const [row] = parseChaseCardStatementText(cardStatement()).rows;
+    const submitted = normalizeSubmissionRow(row, { sourceAccount: 'Typed in the form' });
+
+    assert.equal(submitted.sourceAccount, 'Chase ••4242');
+    assert.equal(submitted.importHash, row.importHash, 'the preview and commit hashes must agree');
+
+    const bankRow = normalizeSubmissionRow({ ...row, accountType: undefined }, { sourceAccount: 'Typed in the form' });
+    assert.equal(bankRow.sourceAccount, 'Typed in the form');
+});
+
+test('uber eats is food even though the line also says uber', () => {
+    assert.equal(cleanChaseTransactionName('Card Purchase 07/23 UBER *EATS HELP.UBER.COM CA Card 6758'), 'Uber Eats');
+    assert.equal(suggestCategory('uber eats uber *eats help.uber.com ca', 'expense'), 'Food');
+    assert.equal(suggestCategory('uber uber *trip help.uber.com ca', 'expense'), 'Transport');
 });

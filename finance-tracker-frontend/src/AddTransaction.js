@@ -2,10 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { createTransaction, updateTransaction } from './api/transactions';
 
 const CATEGORY_OPTIONS = {
-    income: ['Salary', 'Freelance', 'Investment', 'Interest', 'Bonus', 'Gift', 'Transfer', 'Tax Refund', 'Misc'],
+    income: ['Salary', 'Freelance', 'Investment', 'Interest', 'Bonus', 'Gift', 'Transfer', 'Tax Refund', 'Rewards', 'Misc'],
     // No 'Credit Card Payment': paying the card is a transfer, and as an expense it
     // would count every card dollar twice. It lives under transfer below.
-    expense: ['Groceries', 'Housing', 'Transport', 'Health', 'Food', 'Entertainment', 'Transfer', 'Misc'],
+    expense: ['Groceries', 'Housing', 'Transport', 'Travel', 'Health', 'Food', 'Entertainment', 'Interest & Fees', 'Transfer', 'Misc'],
     subscription: ['Subscription', 'Streaming', 'Software', 'Utilities', 'Cloud', 'Gym', 'Membership', 'Misc'],
     // Money moving between the user's own accounts; counted as neither side.
     transfer: ['Credit Card Payment', 'Transfer', 'Misc'],

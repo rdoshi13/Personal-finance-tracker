@@ -19,6 +19,7 @@ const { signAuthToken } = require('../lib/auth');
 const { resetRateLimits } = require('../lib/rateLimit');
 const Transaction = require('../models/Transaction');
 const User = require('../models/User');
+const CardStatement = require('../models/CardStatement');
 
 let server;
 let baseUrl;
@@ -68,7 +69,7 @@ test.before(async () => {
     // Build the declared indexes against a fresh database. This is where an
     // invalid index declaration shows up -- an existing database keeps whatever
     // was created under an older schema and hides the problem.
-    await Promise.all([Transaction.init(), User.init()]);
+    await Promise.all([Transaction.init(), User.init(), CardStatement.init()]);
 
     server = app.listen(0);
     await new Promise((resolve) => server.once('listening', resolve));
@@ -102,6 +103,7 @@ dbTest('every data route refuses an unauthenticated request', async () => {
         '/api/progress',
         '/api/progress/quests/2026/5',
         '/api/subscriptions',
+        '/api/cards/statements',
         '/api/auth/me',
     ];
 
@@ -615,4 +617,122 @@ dbTest('a backfill leaves a row alone once it is no longer an expense', async ()
 
     assert.equal(await applyRow(planRow(row.toObject())), 'unchanged');
     assert.equal((await Transaction.findById(row._id).lean()).type, 'income');
+});
+
+// --- credit card statements ------------------------------------------------------
+
+const cardSnapshot = (overrides = {}) => ({
+    issuer: 'Chase', productName: 'Chase Test Card', last4: '4242', sourceAccount: 'Chase ••4242',
+    openingDate: '2025-10-08', closingDate: '2025-11-07', dueDate: '2025-12-04',
+    previousBalance: 100, payments: -60, purchases: 50, cashAdvances: 0, balanceTransfers: 0,
+    fees: 0, interest: 2.5, newBalance: 92.5, minimumPayment: 25, creditLimit: 1000, purchaseApr: 24.99,
+    ...overrides,
+});
+
+const cardPaymentRow = (overrides = {}) => ({
+    rowNumber: 1, date: '2025-11-04', name: 'Card Payment Received', description: 'AUTOMATIC PAYMENT - THANK YOU',
+    amount: 60, type: 'transfer', category: 'Credit Card Payment', accountType: 'credit_card',
+    sourceAccount: 'Chase ••4242', ...overrides,
+});
+
+dbTest('importing a card statement stores its snapshot, and re-importing it updates rather than duplicates', async () => {
+    await CardStatement.deleteMany({});
+    const post = (statement) => call('/api/transactions/import', {
+        token: annToken, method: 'POST',
+        body: { rows: [cardPaymentRow()], batch: { filename: 'card.pdf', fileHash: 'x', statement } },
+    });
+
+    const first = await asJson(await post(cardSnapshot()));
+    assert.equal(first.status, 201);
+    assert.deepEqual(first.body.warnings, []);
+
+    const again = await asJson(await post(cardSnapshot({ minimumPayment: 30 })));
+    assert.equal(again.status, 201);
+    assert.equal(again.body.imported, 0, 'the row is a duplicate the second time');
+
+    const stored = await CardStatement.find({ userId: ann._id }).lean();
+    assert.equal(stored.length, 1);
+    assert.equal(stored[0].minimumPayment, 30);
+    assert.equal(stored[0].newBalance, 92.5);
+    assert.equal(stored[0].payments, -60);
+
+    const row = await Transaction.findOne({ userId: ann._id, sourceAccount: 'Chase ••4242' }).lean();
+    assert.equal(row.accountType, 'credit_card');
+    assert.equal(row.type, 'transfer');
+});
+
+dbTest('a submitted card statement that does not balance imports nothing at all', async () => {
+    const before = await Transaction.countDocuments({ userId: ann._id });
+    const { status, body } = await asJson(await call('/api/transactions/import', {
+        token: annToken, method: 'POST',
+        body: {
+            rows: [cardPaymentRow({ date: '2025-11-05', amount: 61 })],
+            batch: { filename: 'card.pdf', fileHash: 'y', statement: cardSnapshot({ newBalance: 999 }) },
+        },
+    }));
+
+    assert.equal(status, 400);
+    assert.match(body.message, /does not balance/);
+    assert.equal(await Transaction.countDocuments({ userId: ann._id }), before);
+});
+
+dbTest('card statements are listed newest first, and only to their owner', async () => {
+    await CardStatement.deleteMany({});
+    await CardStatement.create([
+        { ...cardSnapshot(), userId: ann._id, closingDate: new Date('2025-10-07'), openingDate: new Date('2025-09-08') },
+        { ...cardSnapshot(), userId: ann._id },
+        { ...cardSnapshot(), userId: bob._id, last4: '9999' },
+    ]);
+
+    const { status, body } = await asJson(await call('/api/cards/statements', { token: annToken }));
+
+    assert.equal(status, 200);
+    assert.deepEqual(body.statements.map((st) => st.closingDate.slice(0, 10)), ['2025-11-07', '2025-10-07']);
+    assert.ok(body.statements.every((st) => st.last4 === '4242'));
+    assert.equal(body.statements[0].userId, undefined);
+});
+
+dbTest('a card payment is paired with its checking debit whichever side is imported first', async () => {
+    await Transaction.deleteMany({ userId: ann._id });
+    const bankRow = {
+        rowNumber: 1, date: '2025-12-05', name: 'Chase Credit Card Autopay', description: 'Chase Credit Crd Autopay',
+        amount: 40, type: 'transfer', category: 'Credit Card Payment',
+    };
+    const importRows = (rows, statement) => call('/api/transactions/import', {
+        token: annToken, method: 'POST', body: { rows, batch: { filename: 'f.pdf', fileHash: 'z', statement } },
+    });
+
+    // Bank side first: nothing to pair with yet.
+    const bank = await asJson(await importRows([bankRow]));
+    assert.equal(bank.body.transfersMatched, 0);
+
+    // A statement whose only activity is that payment: 100 - 40 = 60.
+    const statement = cardSnapshot({
+        closingDate: '2025-12-07', openingDate: '2025-11-08', payments: -40, purchases: 0, interest: 0, newBalance: 60,
+    });
+    const card = await asJson(await importRows([cardPaymentRow({ date: '2025-12-04', amount: 40 })], statement));
+    assert.equal(card.body.transfersMatched, 1);
+
+    const [bankStored, cardStored] = await Promise.all([
+        Transaction.findOne({ userId: ann._id, accountType: { $ne: 'credit_card' } }).lean(),
+        Transaction.findOne({ userId: ann._id, accountType: 'credit_card' }).lean(),
+    ]);
+    assert.equal(String(bankStored.linkedTransactionId), String(cardStored._id));
+    assert.equal(String(cardStored.linkedTransactionId), String(bankStored._id));
+
+    // Re-importing either file finds nothing left to pair.
+    const again = await asJson(await importRows([bankRow]));
+    assert.equal(again.body.transfersMatched, 0);
+});
+
+dbTest('payments are never paired across users', async () => {
+    await Transaction.deleteMany({});
+    await Transaction.create([
+        { userId: ann._id, name: 'Card', type: 'transfer', category: 'Credit Card Payment', amount: 75, date: new Date('2025-08-04'), accountType: 'credit_card' },
+        { userId: bob._id, name: 'Bank', type: 'transfer', category: 'Credit Card Payment', amount: 75, date: new Date('2025-08-05') },
+    ]);
+    const { matchCardPayments } = require('../lib/transferMatch');
+
+    assert.equal(await matchCardPayments(ann._id), 0);
+    assert.equal(await Transaction.countDocuments({ linkedTransactionId: { $exists: true } }), 0);
 });
