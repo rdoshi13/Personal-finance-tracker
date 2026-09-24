@@ -110,6 +110,13 @@ test('the statement history lists every statement, newest first', () => {
     expect(rows[2]).toHaveTextContent('7 Dec 2025');
 });
 
+test('a statement that closes in credit shows no credit used, not a negative share', () => {
+    mockState.cardStatements = [statement({ newBalance: -25 })];
+    render(<CardsView onImport={jest.fn()} />);
+
+    expect(screen.getByText(/^0% of the .* limit used$/)).toBeInTheDocument();
+});
+
 test('with no statements it offers an import', () => {
     mockState.cardStatements = [];
     const onImport = jest.fn();

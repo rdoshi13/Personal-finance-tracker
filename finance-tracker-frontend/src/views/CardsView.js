@@ -28,7 +28,8 @@ const CardSection = ({ statements, rows, grown }) => {
     const interestThisYear = sumMoney(
         statements.filter((s) => yearOf(s.closingDate) === year).map((s) => s.interest)
     );
-    const used = latest.creditLimit ? Math.min(latest.newBalance / latest.creditLimit, 1) : null;
+    // Clamped at 0 too: a statement can close in credit after an overpayment.
+    const used = latest.creditLimit ? Math.min(Math.max(latest.newBalance / latest.creditLimit, 0), 1) : null;
 
     const payments = rows
         .filter(isTransfer)
