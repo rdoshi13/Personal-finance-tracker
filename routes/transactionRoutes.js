@@ -72,6 +72,8 @@ const updateTransactionById = async (req, res) => {
         }
 
         delete payload.userId;
+        // Server-managed: set only by the transfer matcher, never by a client.
+        delete payload.linkedTransactionId;
 
         const updatedTransaction = await Transaction.findOneAndUpdate(
             { _id: req.params.id, userId },
@@ -100,6 +102,14 @@ const deleteTransactionById = async (req, res) => {
 
         if (!deletedTransaction) {
             return res.status(404).json({ message: 'Transaction not found' });
+        }
+
+        // Its partner stays, but must not point at a row that no longer exists.
+        if (deletedTransaction.linkedTransactionId) {
+            await Transaction.updateOne(
+                { _id: deletedTransaction.linkedTransactionId, userId },
+                { $unset: { linkedTransactionId: 1 } }
+            );
         }
 
         res.json({ message: 'Transaction deleted' });
@@ -215,6 +225,7 @@ router.post('/import', async (req, res) => {
                     importHash: row.importHash,
                     importBatchId: importBatch._id,
                     sourceAccount: row.sourceAccount,
+                    accountType: row.accountType,
                 });
                 importedTransactions.push(transaction);
             } catch (error) {
@@ -258,6 +269,7 @@ router.post('/', async (req, res) => {
         payload.name = typeof payload.name === 'string' ? payload.name.trim() : '';
         payload.category = typeof payload.category === 'string' ? payload.category.trim() : payload.category;
         delete payload.userId;
+        delete payload.linkedTransactionId;
 
         if (!payload.name) {
             return res.status(400).json({ message: 'Name is required' });
@@ -436,7 +448,11 @@ router.get('/report/:year/:month', async (req, res) => {
             report[groupCategory].total = roundMoney(report[groupCategory].total + amount);
             report[groupCategory].transactions += 1;
 
-            const typeBucket = transaction.type === 'income' ? incomeReport : outflowReport;
+            // Transfers move money between the user's own accounts: neither side.
+            let typeBucket = null;
+            if (transaction.type === 'income') typeBucket = incomeReport;
+            else if (OUTFLOW_TYPES.includes(transaction.type)) typeBucket = outflowReport;
+            if (!typeBucket) return;
             if (!typeBucket[groupCategory]) typeBucket[groupCategory] = { total: 0, transactions: 0 };
             typeBucket[groupCategory].total = roundMoney(typeBucket[groupCategory].total + amount);
             typeBucket[groupCategory].transactions += 1;
@@ -446,7 +462,7 @@ router.get('/report/:year/:month', async (req, res) => {
         const totalIncome = sumMoney(transactions.filter(t => t.type === 'income').map(t => t.amount));
         const totalExpenses = sumMoney(
             transactions
-                .filter(t => t.type === 'expense' || t.type === 'subscription')
+                .filter(t => OUTFLOW_TYPES.includes(t.type))
                 .map(t => t.amount)
         );
 

@@ -1,4 +1,4 @@
-import { initialsOf, isIncome, isOutflow, money, periodKeyOf, periodLabel, signedMoney, spendByCategory, summarize, categoryBreakdown, isOverBy, roundMoney, sumMoney, toCents } from './money';
+import { initialsOf, isIncome, isOutflow, isTransfer, money, periodKeyOf, periodLabel, signedMoney, spendByCategory, summarize, categoryBreakdown, isOverBy, roundMoney, sumMoney, toCents } from './money';
 
 const tx = (date, type, amount, category = 'Misc') => ({ date, type, amount, category });
 
@@ -32,6 +32,22 @@ describe('money helpers', () => {
         expect(summary.expense).toBe(250);
         expect(summary.net).toBe(750);
         expect(summary.count).toBe(3);
+    });
+
+    test('a transfer is on neither side: not income, not spend, not in the net', () => {
+        const rows = [
+            tx('2026-05-01T00:00:00Z', 'income', 1000, 'Salary'),
+            tx('2026-05-02T00:00:00Z', 'expense', 200, 'Groceries'),
+            tx('2026-05-03T00:00:00Z', 'transfer', 500, 'Credit Card Payment'),
+        ];
+        const summary = summarize(rows);
+
+        expect(isTransfer(rows[2])).toBe(true);
+        expect(isIncome(rows[2]) || isOutflow(rows[2])).toBe(false);
+        expect(summary.income).toBe(1000);
+        expect(summary.expense).toBe(200);
+        expect(summary.net).toBe(800);
+        expect(spendByCategory(rows)['Credit Card Payment']).toBeUndefined();
     });
 
     test('spendByCategory folds blank categories into Uncategorized', () => {

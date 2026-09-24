@@ -240,3 +240,79 @@ test('a statement subscription is typed subscription', () => {
     assert.equal(spotify.type, 'subscription');
     assert.equal(groceries.type, 'expense');
 });
+
+// --- credit card payments are transfers ------------------------------------
+
+test('a manual card payment gets a clean name, without its date prefix', () => {
+    assert.equal(cleanChaseTransactionName('07/20 Payment To Chase Card Ending IN 1301'), 'Chase Card Payment');
+    assert.equal(cleanChaseTransactionName('Payment To Chase Card Ending IN 1301'), 'Chase Card Payment');
+});
+
+test('resolveType makes an outgoing card payment a transfer, never an inflow', () => {
+    assert.equal(resolveType('expense', 'Credit Card Payment'), 'transfer');
+    assert.equal(resolveType('income', 'Credit Card Payment'), 'income');
+});
+
+test('both shapes of card payment in a checking statement import as transfers', () => {
+    const statement = [
+        'CHECKING SUMMARY',
+        'Beginning Balance $2,000.00',
+        'TRANSACTION DETAIL',
+        '07/06 Chase Credit Crd Autopay PPD ID: 4760039224 -40.00 1,960.00',
+        '07/20 07/20 Payment To Chase Card Ending IN 1301 -500.00 1,460.00',
+        '07/21 Card Purchase 07/21 Subway 54791 Tempe AZ Card 6758 -10.00 1,450.00',
+        'Ending Balance $1,450.00',
+        'through July 31, 2026',
+    ].join('\n');
+
+    const [autopay, manual, subway] = normalizeChaseStatementText(statement, { sourceAccount: 'Chase 9550' });
+
+    // The autopay name predates this change and is part of its import hash, so it
+    // must not move -- otherwise re-importing an old statement duplicates the row.
+    assert.equal(autopay.name, 'Chase Credit Card Autopay');
+    assert.equal(autopay.type, 'transfer');
+    assert.equal(autopay.category, 'Credit Card Payment');
+    assert.equal(autopay.amount, 40);
+
+    assert.equal(manual.name, 'Chase Card Payment');
+    assert.equal(manual.type, 'transfer');
+    assert.equal(manual.category, 'Credit Card Payment');
+    assert.equal(manual.amount, 500);
+    assert.equal(manual.date, '2026-07-20');
+    assert.equal(manual.status, 'ready');
+
+    assert.equal(subway.type, 'expense');
+});
+
+test('a card payment in a CSV export is a transfer too', () => {
+    const csv = [
+        'Date,Description,Amount',
+        '2026-07-20,Payment To Chase Card Ending IN 1301,-500.00',
+    ].join('\n');
+
+    const [row] = normalizeCsvBuffer(Buffer.from(csv));
+
+    // The CSV path does not clean names. scripts/backfillCardTransfers.js relies on
+    // that: it leaves CSV rows' names and hashes alone because a re-import keeps them.
+    assert.equal(row.name, 'Payment To Chase Card Ending IN 1301');
+    assert.equal(row.type, 'transfer');
+    assert.equal(row.category, 'Credit Card Payment');
+    assert.equal(row.amount, 500);
+});
+
+test('submission accepts transfer and a known accountType, and drops an unknown one', () => {
+    const base = { date: '2026-07-20', name: 'Chase Card Payment', amount: 500, category: 'Credit Card Payment' };
+
+    const transfer = normalizeSubmissionRow({ ...base, type: 'transfer', accountType: 'credit_card' });
+    assert.equal(transfer.status, 'ready');
+    assert.equal(transfer.type, 'transfer');
+    assert.equal(transfer.accountType, 'credit_card');
+
+    const bogus = normalizeSubmissionRow({ ...base, type: 'transfer', accountType: 'offshore' });
+    assert.equal(bogus.status, 'ready');
+    assert.equal(bogus.accountType, undefined);
+
+    const badType = normalizeSubmissionRow({ ...base, type: 'gift' });
+    assert.equal(badType.status, 'invalid');
+    assert.deepEqual(badType.errors, ['Invalid transaction type']);
+});

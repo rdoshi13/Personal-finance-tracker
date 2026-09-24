@@ -492,3 +492,127 @@ dbTest('a subscription cancellation round-trips for the owner only', async () =>
     const theirs = await asJson(await call('/api/subscriptions', { token: bobToken }));
     assert.deepEqual(theirs.body.cancelled, [], "Bob must not see Ann's overrides");
 });
+
+// --- transfers ---------------------------------------------------------------
+
+dbTest('a transfer counts as neither income nor expense in the summary', async () => {
+    await Transaction.create([
+        { userId: ann._id, name: 'Pay', type: 'income', category: 'Salary', amount: 1000, date: new Date('2025-03-02') },
+        { userId: ann._id, name: 'Lunch', type: 'expense', category: 'Food', amount: 30, date: new Date('2025-03-03') },
+        { userId: ann._id, name: 'Chase Card Payment', type: 'transfer', category: 'Credit Card Payment', amount: 500, date: new Date('2025-03-04') },
+    ]);
+
+    const { body } = await asJson(await call('/api/transactions/summary?year=2025', { token: annToken }));
+    const march = body.months.find((m) => m.month === 3);
+
+    assert.equal(march.income, 1000);
+    assert.equal(march.expense, 30);
+    assert.equal(march.net, 970);
+});
+
+dbTest('the month report leaves transfers out of both sides of its breakdown', async () => {
+    await Transaction.create([
+        { userId: ann._id, name: 'Lunch', type: 'expense', category: 'Food', amount: 12, date: new Date('2025-04-03') },
+        { userId: ann._id, name: 'Chase Card Payment', type: 'transfer', category: 'Credit Card Payment', amount: 500, date: new Date('2025-04-04') },
+    ]);
+
+    const { body } = await asJson(await call('/api/transactions/report/2025/4', { token: annToken }));
+
+    assert.equal(body.totalExpenses, 12);
+    assert.equal(body.totalIncome, 0);
+    assert.equal(body.breakdownByType.outflow['Credit Card Payment'], undefined);
+    assert.equal(body.breakdownByType.income['Credit Card Payment'], undefined);
+    assert.equal(body.breakdownByType.outflow.Food.total, 12);
+    // The legacy all-categories bucket keeps its shape and still lists every row.
+    assert.equal(body.report['Credit Card Payment'].total, 500);
+});
+
+dbTest('deleting one half of a matched transfer unlinks the other', async () => {
+    const [bank, card] = await Transaction.create([
+        { userId: ann._id, name: 'Chase Card Payment', type: 'transfer', category: 'Credit Card Payment', amount: 40, date: new Date('2025-05-05') },
+        { userId: ann._id, name: 'Autopay', type: 'transfer', category: 'Credit Card Payment', amount: 40, date: new Date('2025-05-04'), accountType: 'credit_card' },
+    ]);
+    await Transaction.updateOne({ _id: bank._id }, { linkedTransactionId: card._id });
+    await Transaction.updateOne({ _id: card._id }, { linkedTransactionId: bank._id });
+
+    const { status } = await asJson(await call(`/api/transactions/${bank._id}`, { token: annToken, method: 'DELETE' }));
+    const survivor = await Transaction.findById(card._id).lean();
+
+    assert.equal(status, 200);
+    assert.equal(survivor.linkedTransactionId, undefined);
+});
+
+dbTest('a client cannot set the transfer link itself', async () => {
+    const theirs = await Transaction.create({
+        userId: bob._id, name: 'Bob row', type: 'expense', category: 'Food', amount: 5, date: new Date('2025-06-01'),
+    });
+
+    const created = await asJson(await call('/api/transactions', {
+        token: annToken,
+        method: 'POST',
+        body: { name: 'Mine', type: 'transfer', category: 'Transfer', amount: 5, date: '2025-06-02', linkedTransactionId: String(theirs._id) },
+    }));
+    assert.equal(created.status, 201);
+    assert.equal(created.body.linkedTransactionId, undefined);
+
+    const updated = await asJson(await call(`/api/transactions/${created.body._id}`, {
+        token: annToken, method: 'PUT', body: { linkedTransactionId: String(theirs._id) },
+    }));
+    assert.equal(updated.status, 200);
+    assert.equal(updated.body.linkedTransactionId, undefined);
+});
+
+dbTest('an import commit stores transfer rows with their account type', async () => {
+    const { status, body } = await asJson(await call('/api/transactions/import', {
+        token: annToken,
+        method: 'POST',
+        body: {
+            rows: [{
+                rowNumber: 1, date: '2025-07-20', name: 'Chase Card Payment', description: 'Payment To Chase Card Ending IN 1301',
+                amount: 500, type: 'transfer', category: 'Credit Card Payment', accountType: 'bank',
+            }],
+            batch: { filename: 'statement.pdf', fileHash: 'abc' },
+        },
+    }));
+
+    assert.equal(status, 201);
+    assert.equal(body.imported, 1);
+    const stored = await Transaction.findById(body.transactions[0]._id).lean();
+    assert.equal(stored.type, 'transfer');
+    assert.equal(stored.accountType, 'bank');
+});
+
+dbTest('a backfill hash collision still retypes the row, and reports it as a duplicate', async () => {
+    const { applyRow, planRow } = require('../scripts/backfillCardTransfers');
+    const { buildImportHash } = require('../lib/transactionImport');
+    const fields = { date: new Date('2025-08-20T12:00:00Z'), amount: 500, sourceAccount: '' };
+    const oldName = '08/20 Payment To Chase Card Ending IN 1301';
+
+    // The old import, and the same payment re-imported after the importer changed.
+    const old = await Transaction.create({
+        ...fields, userId: ann._id, name: oldName, description: oldName, type: 'expense', category: 'Misc',
+        importHash: buildImportHash({ ...fields, name: oldName }),
+    });
+    await Transaction.create({
+        ...fields, userId: ann._id, name: 'Chase Card Payment', description: oldName, type: 'transfer',
+        category: 'Credit Card Payment', importHash: buildImportHash({ ...fields, name: 'Chase Card Payment' }),
+    });
+
+    const outcome = await applyRow(planRow(old.toObject(), 'pdf'));
+    const after = await Transaction.findById(old._id).lean();
+
+    assert.equal(outcome, 'duplicate');
+    assert.equal(after.type, 'transfer', 'must stop counting as spending even though the rename collided');
+    assert.equal(after.name, oldName);
+    assert.equal(after.importHash, old.importHash);
+});
+
+dbTest('a backfill leaves a row alone once it is no longer an expense', async () => {
+    const { applyRow, planRow } = require('../scripts/backfillCardTransfers');
+    const row = await Transaction.create({
+        userId: ann._id, name: 'Card', type: 'income', category: 'Credit Card Payment', amount: 5, date: new Date('2025-09-01'),
+    });
+
+    assert.equal(await applyRow(planRow(row.toObject())), 'unchanged');
+    assert.equal((await Transaction.findById(row._id).lean()).type, 'income');
+});

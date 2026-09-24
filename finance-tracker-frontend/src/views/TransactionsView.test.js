@@ -180,3 +180,42 @@ describe('TransactionsView filtering and sorting', () => {
         expect(within(screen.getByText(/Net of shown/)).getByText(/95\.00/)).toBeInTheDocument();
     });
 });
+
+describe('TransactionsView transfers', () => {
+    const rows = () => [...document.querySelectorAll('.bq-table tbody tr')]
+        .map((r) => r.querySelector('.bq-tn')?.textContent)
+        .filter(Boolean);
+
+    beforeEach(() => {
+        mockState.monthTransactions = [
+            { _id: '1', name: 'Costco', category: 'Groceries', amount: 80, type: 'expense', date: '2026-05-02T12:00:00.000Z' },
+            { _id: '2', name: 'Payroll', category: 'Salary', amount: 3000, type: 'income', date: '2026-05-10T12:00:00.000Z' },
+            { _id: '3', name: 'Chase Card Payment', category: 'Credit Card Payment', amount: 500, type: 'transfer', date: '2026-05-12T12:00:00.000Z' },
+        ];
+        mockState.categories = ['Credit Card Payment', 'Groceries', 'Salary'];
+        mockState.filters = { q: '', type: 'all', category: 'all', from: '', to: '' };
+        mockState.sort = { key: 'date', dir: 'desc' };
+    });
+
+    test('the expense filter no longer sweeps in transfers', () => {
+        mockState.filters = { ...mockState.filters, type: 'outflow' };
+        render(<TransactionsView onAdd={jest.fn()} onEdit={jest.fn()} />);
+        expect(rows()).toEqual(['Costco']);
+    });
+
+    test('the transfer filter keeps only transfers', () => {
+        mockState.filters = { ...mockState.filters, type: 'transfer' };
+        render(<TransactionsView onAdd={jest.fn()} onEdit={jest.fn()} />);
+        expect(rows()).toEqual(['Chase Card Payment']);
+    });
+
+    test('a transfer is marked TF and coloured as neither gain nor spend', () => {
+        render(<TransactionsView onAdd={jest.fn()} onEdit={jest.fn()} />);
+        const row = screen.getByText('Chase Card Payment').closest('tr');
+        const amount = row.querySelector('.bq-tamt.bq-num');
+
+        expect(amount).toHaveClass('bq-xfer');
+        expect(amount).not.toHaveClass('bq-neg');
+        expect(row.querySelector('.bq-dirt')).toHaveTextContent('TF');
+    });
+});

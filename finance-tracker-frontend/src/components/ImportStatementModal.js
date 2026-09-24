@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { importTransactions, previewTransactionImport } from '../api/transactions';
 
 const CATEGORY_OPTIONS = ['Salary', 'Freelance', 'Investment', 'Interest', 'Bonus', 'Gift', 'Tax Refund', 'Groceries', 'Housing', 'Transport', 'Health', 'Food', 'Entertainment', 'Transfer', 'Credit Card Payment', 'Subscription', 'Streaming', 'Software', 'Utilities', 'Cloud', 'Gym', 'Membership', 'Misc'];
-const TYPE_OPTIONS = ['expense', 'income', 'subscription'];
+const TYPE_OPTIONS = ['expense', 'income', 'subscription', 'transfer'];
 
 const getRowKey = (row, index) => row.importHash || `${row.rowNumber || 'row'}-${index}`;
 const isImportableRow = (row) =>
