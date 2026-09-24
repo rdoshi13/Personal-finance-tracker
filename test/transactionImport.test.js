@@ -545,3 +545,42 @@ test('section and page headers inside the activity block are not glued onto a ro
         'PURCHASE INTEREST CHARGE',
     ]);
 });
+
+test('lines that clean to the same hash inputs are still told apart', () => {
+    const { rows } = parseChaseCardStatementText(cardStatement({
+        rows: [
+            '12/20 AUTOMATIC PAYMENT - THANK YOU -40.00',
+            '12/22 STATEMENT CREDIT -20.00',
+            // A charge and its same-day refund: same name, same unsigned amount.
+            '12/06 CORNER BAKERY 555-123-4567 NY 25.00',
+            '12/06 CORNER BAKERY 555-123-4567 NY -25.00',
+            // Two different trips whose printed lines differ but both clean to 'Uber'.
+            '12/07 UBER *TRIP HELP.UBER.COM CA 15.00',
+            '12/07 UBER *TRIP 8XYZ HELP.UBER.COM CA 15.00',
+            '01/03 SKYWAY AIRLINES 0012345 SKYWAY.COM TX 20.00',
+            '01/07 PURCHASE INTEREST CHARGE 2.50',
+        ],
+    }));
+    const hashes = rows.map((row) => row.importHash);
+
+    assert.equal(new Set(hashes).size, rows.length, 'every row must survive duplicate marking');
+    assert.equal(rows.filter((row) => row.name === 'Uber').length, 2);
+});
+
+test("pdf-parse's page separator is not glued onto the last row of a page", () => {
+    const { rows } = parseChaseCardStatementText(cardStatement({
+        rows: [
+            '12/20 AUTOMATIC PAYMENT - THANK YOU -40.00',
+            '12/22 STATEMENT CREDIT -20.00',
+            '12/06 CORNER BAKERY 555-123-4567 NY 30.00',
+            '',
+            '-- 1 of 3 --',
+            '',
+            '01/03 SKYWAY AIRLINES 0012345 SKYWAY.COM TX 20.00',
+            '01/07 PURCHASE INTEREST CHARGE 2.50',
+        ],
+    }));
+
+    assert.equal(rows[2].description, 'CORNER BAKERY 555-123-4567 NY');
+    assert.equal(rows[2].name, 'Corner Bakery');
+});
