@@ -1,6 +1,7 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
 const Transaction = require('../models/Transaction');
+const ImportBatch = require('../models/ImportBatch');
 const { buildImportHash, cleanChaseTransactionName } = require('../lib/transactionImport');
 
 /**
@@ -11,14 +12,24 @@ const { buildImportHash, cleanChaseTransactionName } = require('../lib/transacti
  *
  * Matches outflows in the 'Credit Card Payment' category, plus manual payments
  * ("07/20 Payment To Chase Card Ending IN 1301") that the importer used to file
- * under Misc with the date in the name. Those are also renamed to what the
- * importer now produces, 'Chase Card Payment'.
+ * under Misc with the date in the name.
  *
- * Renaming has a trap: buildImportHash() includes the name, so a renamed row
- * would no longer match its own statement line, and re-importing that statement
- * would duplicate it. So the hash is recomputed too -- but only when the stored
- * hash is exactly what the old fields produce, which proves the row came from an
- * import and has not been edited since. Anything else is reported, not guessed at.
+ * Renaming has a trap: buildImportHash() includes the name, so the stored hash has
+ * to stay equal to what re-importing the same file would now produce, or that
+ * re-import duplicates the row. Two consequences:
+ *
+ * - only rows imported from a PDF are renamed to 'Chase Card Payment', because only
+ *   the PDF path cleans names. The CSV path keeps the raw text as the name, now and
+ *   before, so a CSV row keeps its name and its hash. The source is read from the
+ *   row's ImportBatch filename; when that is unknown the name is left and reported;
+ * - a PDF row is renamed, and its hash recomputed, only when the stored hash is
+ *   exactly what the old fields produce -- proof the name is the importer's, not
+ *   one the user typed. An edited row keeps its name and is reported.
+ *
+ * If a statement was re-imported after the importer changed but before this ran,
+ * the renamed hash already belongs to the newer row. The retype still happens --
+ * the old row must stop counting as spending -- and the pair is reported as a
+ * duplicate to delete.
  *
  * Changes totals on purpose: these rows leave expense and every aggregate built on
  * it. Idempotent -- rows already typed 'transfer' are not matched. Pass --dry to
@@ -26,25 +37,65 @@ const { buildImportHash, cleanChaseTransactionName } = require('../lib/transacti
  */
 const MANUAL_PAYMENT = /Payment To Chase Card Ending IN \d{4}/i;
 
-/** What one row becomes. Pure, so the hash rule is testable without a database. */
-const planRow = (t) => {
-    const renamed = MANUAL_PAYMENT.test(t.description || '')
-        ? cleanChaseTransactionName(t.description)
-        : t.name;
-    const update = { type: 'transfer', category: 'Credit Card Payment', name: renamed };
-    let note = '';
+/**
+ * What one row becomes. Pure, so the rename and hash rules are testable without a
+ * database. `source` is the import file's kind: 'pdf', 'csv', or null if unknown.
+ */
+const planRow = (t, source = null) => {
+    const update = { type: 'transfer', category: 'Credit Card Payment', name: t.name };
+    const isManualPayment = MANUAL_PAYMENT.test(t.description || '');
+    if (!isManualPayment) return { t, update, note: '' };
 
-    if (renamed !== t.name && t.importHash) {
-        const fields = { date: t.date, amount: t.amount, sourceAccount: t.sourceAccount };
-        if (buildImportHash({ ...fields, name: t.name }) === t.importHash) {
-            update.importHash = buildImportHash({ ...fields, name: renamed });
-            note = 'hash recomputed';
-        } else {
-            note = 'hash left alone: edited since import, re-importing its statement may duplicate it';
-        }
+    if (source !== 'pdf') {
+        const note = source === null && t.importBatchId
+            ? 'name kept: import file unknown, so a rename could not be matched to a re-import'
+            : '';
+        return { t, update, note };
     }
 
-    return { t, update, note };
+    const renamed = cleanChaseTransactionName(t.description);
+    if (renamed === t.name) return { t, update, note: '' };
+
+    // Rename only a name the importer wrote. An edited row keeps the user's name.
+    const fields = { date: t.date, amount: t.amount, sourceAccount: t.sourceAccount };
+    if (!t.importHash || buildImportHash({ ...fields, name: t.name }) !== t.importHash) {
+        return { t, update, note: 'name kept: edited since import' };
+    }
+
+    return {
+        t,
+        update: { ...update, name: renamed, importHash: buildImportHash({ ...fields, name: renamed }) },
+        note: 'renamed, hash recomputed',
+    };
+};
+
+const sourceOf = (filename) => {
+    const name = String(filename || '').toLowerCase();
+    if (name.endsWith('.pdf')) return 'pdf';
+    if (name.endsWith('.csv')) return 'csv';
+    return null;
+};
+
+/**
+ * Writes one planned row. Returns 'updated', 'duplicate' (retyped, but the renamed
+ * hash belongs to another row), or 'unchanged' (no longer an expense -- edited
+ * concurrently). Exported for the integration tests.
+ */
+const applyRow = async ({ t, update }) => {
+    // Guarded on the type so a concurrent edit is not overwritten.
+    const filter = { _id: t._id, type: 'expense' };
+
+    try {
+        const result = await Transaction.updateOne(filter, { $set: update });
+        return result.modifiedCount ? 'updated' : 'unchanged';
+    } catch (error) {
+        if (error?.code !== 11000) throw error;
+    }
+
+    const result = await Transaction.updateOne(filter, {
+        $set: { type: update.type, category: update.category },
+    });
+    return result.modifiedCount ? 'duplicate' : 'unchanged';
 };
 
 const run = async () => {
@@ -70,7 +121,10 @@ const run = async () => {
         return;
     }
 
-    const plan = candidates.map(planRow);
+    const batchIds = [...new Set(candidates.map((t) => t.importBatchId).filter(Boolean).map(String))];
+    const batches = await ImportBatch.find({ _id: { $in: batchIds } }).select('filename').lean();
+    const filenameOf = new Map(batches.map((b) => [String(b._id), b.filename]));
+    const plan = candidates.map((t) => planRow(t, sourceOf(filenameOf.get(String(t.importBatchId)))));
 
     const total = plan.reduce((sum, { t }) => sum + Math.round(t.amount * 100), 0) / 100;
     console.log(`${plan.length} row(s) to retype as 'transfer' ($${total.toFixed(2)} leaves spending):`);
@@ -88,25 +142,28 @@ const run = async () => {
         return;
     }
 
-    let updated = 0;
-    for (const { t, update } of plan) {
-        try {
-            // Guarded on the type so a concurrent edit is not overwritten.
-            const result = await Transaction.updateOne({ _id: t._id, type: 'expense' }, { $set: update });
-            updated += result.modifiedCount;
-        } catch (error) {
-            if (error?.code !== 11000) throw error;
-            console.log(`  skipped ${t._id}: its new import hash already belongs to another row`);
+    let retyped = 0;
+    for (const entry of plan) {
+        const outcome = await applyRow(entry);
+        if (outcome !== 'unchanged') retyped += 1;
+        if (outcome === 'duplicate') {
+            const other = await Transaction.findOne({ userId: entry.t.userId, importHash: entry.update.importHash })
+                .select('_id').lean();
+            console.log(
+                `  duplicate: ${entry.t._id} was retyped but kept its name; ${other?._id} is the same` +
+                ' payment from a later re-import. Delete one of them.'
+            );
         }
+        if (outcome === 'unchanged') console.log(`  skipped ${entry.t._id}: no longer an expense`);
     }
 
-    console.log(`\nRetyped ${updated} transaction(s).`);
+    console.log(`\nRetyped ${retyped} transaction(s).`);
     await mongoose.disconnect();
 };
 
-module.exports = { planRow };
+module.exports = { applyRow, planRow, sourceOf };
 
-// Required by the tests for planRow; only run when invoked directly.
+// Required by the tests; only run when invoked directly.
 if (require.main === module) {
     run().catch(async (error) => {
         console.error('Backfill failed:', error.message);

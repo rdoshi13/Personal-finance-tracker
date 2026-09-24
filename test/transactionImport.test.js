@@ -292,6 +292,9 @@ test('a card payment in a CSV export is a transfer too', () => {
 
     const [row] = normalizeCsvBuffer(Buffer.from(csv));
 
+    // The CSV path does not clean names. scripts/backfillCardTransfers.js relies on
+    // that: it leaves CSV rows' names and hashes alone because a re-import keeps them.
+    assert.equal(row.name, 'Payment To Chase Card Ending IN 1301');
     assert.equal(row.type, 'transfer');
     assert.equal(row.category, 'Credit Card Payment');
     assert.equal(row.amount, 500);

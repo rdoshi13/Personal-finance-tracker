@@ -581,3 +581,38 @@ dbTest('an import commit stores transfer rows with their account type', async ()
     assert.equal(stored.type, 'transfer');
     assert.equal(stored.accountType, 'bank');
 });
+
+dbTest('a backfill hash collision still retypes the row, and reports it as a duplicate', async () => {
+    const { applyRow, planRow } = require('../scripts/backfillCardTransfers');
+    const { buildImportHash } = require('../lib/transactionImport');
+    const fields = { date: new Date('2025-08-20T12:00:00Z'), amount: 500, sourceAccount: '' };
+    const oldName = '08/20 Payment To Chase Card Ending IN 1301';
+
+    // The old import, and the same payment re-imported after the importer changed.
+    const old = await Transaction.create({
+        ...fields, userId: ann._id, name: oldName, description: oldName, type: 'expense', category: 'Misc',
+        importHash: buildImportHash({ ...fields, name: oldName }),
+    });
+    await Transaction.create({
+        ...fields, userId: ann._id, name: 'Chase Card Payment', description: oldName, type: 'transfer',
+        category: 'Credit Card Payment', importHash: buildImportHash({ ...fields, name: 'Chase Card Payment' }),
+    });
+
+    const outcome = await applyRow(planRow(old.toObject(), 'pdf'));
+    const after = await Transaction.findById(old._id).lean();
+
+    assert.equal(outcome, 'duplicate');
+    assert.equal(after.type, 'transfer', 'must stop counting as spending even though the rename collided');
+    assert.equal(after.name, oldName);
+    assert.equal(after.importHash, old.importHash);
+});
+
+dbTest('a backfill leaves a row alone once it is no longer an expense', async () => {
+    const { applyRow, planRow } = require('../scripts/backfillCardTransfers');
+    const row = await Transaction.create({
+        userId: ann._id, name: 'Card', type: 'income', category: 'Credit Card Payment', amount: 5, date: new Date('2025-09-01'),
+    });
+
+    assert.equal(await applyRow(planRow(row.toObject())), 'unchanged');
+    assert.equal((await Transaction.findById(row._id).lean()).type, 'income');
+});
