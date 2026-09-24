@@ -3,7 +3,7 @@ import { useAppState } from '../state/AppStateContext';
 import useCountUp from '../hooks/useCountUp';
 import useGrowIn from '../hooks/useGrowIn';
 import { categoryColor } from '../lib/categoryColor';
-import { initialsOf, isOverBy, money, periodLabel, spendByCategory, sumMoney } from '../lib/money';
+import { initialsOf, isIncome, isOutflow, isOverBy, isTransfer, money, periodLabel, spendByCategory, sumMoney } from '../lib/money';
 import QuestCard from '../components/game/QuestCard';
 import { CalendarIcon, StarIcon } from '../components/shell/icons';
 
@@ -106,7 +106,7 @@ const DashboardView = ({ onAdd }) => {
     const keptRate = totals.income ? (totals.net / totals.income) * 100 : 0;
     const biggest = sortedSpend[0];
     const biggestCount = biggest
-        ? monthTransactions.filter((t) => (t.category || 'Uncategorized') === biggest[0] && t.type !== 'income').length
+        ? monthTransactions.filter((t) => (t.category || 'Uncategorized') === biggest[0] && isOutflow(t)).length
         : 0;
 
     return (
@@ -267,7 +267,8 @@ const DashboardView = ({ onAdd }) => {
                 </div>
                 <div className="bq-pb" style={{ paddingTop: 2 }}>
                     {dayGroups.map(([day, items]) => {
-                        const dayNet = sumMoney(items.map((t) => (t.type === 'income' ? Number(t.amount) : -Number(t.amount))));
+                        // Transfers are shown but contribute nothing: no money left the user's hands.
+                        const dayNet = sumMoney(items.filter((t) => !isTransfer(t)).map((t) => (isIncome(t) ? Number(t.amount) : -Number(t.amount))));
                         return (
                             <div key={day}>
                                 <div className="bq-dayh">
@@ -290,9 +291,15 @@ const DashboardView = ({ onAdd }) => {
                                                 {t.category || 'Uncategorized'}
                                             </span>
                                         </span>
-                                        <span className={`bq-txa bq-num ${t.type === 'income' ? 'bq-pos' : 'bq-neg'}`}>
-                                            {t.type === 'income' ? '+' : '−'}{money(t.amount)}
-                                        </span>
+                                        {isTransfer(t) ? (
+                                            <span className="bq-txa bq-num bq-xfer" title="Transfer between your accounts">
+                                                ⇄{money(t.amount)}
+                                            </span>
+                                        ) : (
+                                            <span className={`bq-txa bq-num ${isIncome(t) ? 'bq-pos' : 'bq-neg'}`}>
+                                                {isIncome(t) ? '+' : '−'}{money(t.amount)}
+                                            </span>
+                                        )}
                                     </div>
                                 ))}
                             </div>

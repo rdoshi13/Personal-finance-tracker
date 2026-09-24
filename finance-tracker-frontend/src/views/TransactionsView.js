@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useAppState } from '../state/AppStateContext';
 import { categoryColor } from '../lib/categoryColor';
-import { isIncome, money, summarize } from '../lib/money';
+import { isIncome, isOutflow, isTransfer, money, summarize } from '../lib/money';
 import { PencilIcon, PlusIcon, TrashIcon } from '../components/shell/icons';
 
 const COLUMNS = [
@@ -28,11 +28,9 @@ const TransactionsView = ({ onAdd, onEdit }) => {
                     String(t.description || '').toLowerCase().includes(q)
             );
         }
-        if (filters.type !== 'all') {
-            list = filters.type === 'income'
-                ? list.filter(isIncome)
-                : list.filter((t) => !isIncome(t));
-        }
+        if (filters.type === 'income') list = list.filter(isIncome);
+        else if (filters.type === 'outflow') list = list.filter(isOutflow);
+        else if (filters.type === 'transfer') list = list.filter(isTransfer);
         if (filters.category !== 'all') {
             list = list.filter((t) => (t.category || 'Uncategorized') === filters.category);
         }
@@ -82,6 +80,7 @@ const TransactionsView = ({ onAdd, onEdit }) => {
                         <option value="all">All</option>
                         <option value="income">Income</option>
                         <option value="outflow">Expense</option>
+                        <option value="transfer">Transfer</option>
                     </select>
                 </div>
                 <div className="bq-fld">
@@ -139,6 +138,11 @@ const TransactionsView = ({ onAdd, onEdit }) => {
                         {rows.length ? rows.map((t) => {
                             const id = t._id || t.id;
                             const income = isIncome(t);
+                            const transfer = isTransfer(t);
+                            let tone = income ? 'bq-pos' : 'bq-neg';
+                            if (transfer) tone = 'bq-xfer';
+                            let dir = { cls: income ? 'cr' : 'dr', label: income ? 'CR' : 'DR' };
+                            if (transfer) dir = { cls: 'tf', label: 'TF' };
                             return (
                                 <tr key={id}>
                                     <td className="bq-num" style={{ color: 'var(--ink-2)' }}>
@@ -152,8 +156,8 @@ const TransactionsView = ({ onAdd, onEdit }) => {
                                         </span>
                                     </td>
                                     <td><div className="bq-tdesc">{t.description || '—'}</div></td>
-                                    <td className={`bq-tamt bq-num ${income ? 'bq-pos' : 'bq-neg'}`}>
-                                        <span className={`bq-dirt ${income ? 'cr' : 'dr'}`}>{income ? 'CR' : 'DR'}</span>
+                                    <td className={`bq-tamt bq-num ${tone}`}>
+                                        <span className={`bq-dirt ${dir.cls}`}>{dir.label}</span>
                                         {money(t.amount)}
                                     </td>
                                     <td className="bq-tamt">

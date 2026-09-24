@@ -48,6 +48,8 @@
 }
 .bq-pos { color: var(--pos); }
 .bq-neg { color: var(--neg); }
+/* A transfer between the user's own accounts: neither gained nor spent. */
+.bq-xfer { color: var(--ink-2); }
 
 .bq-kbd {
   font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; padding: 2px 5px;

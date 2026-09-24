@@ -1,7 +1,10 @@
+// 'transfer' (paying the card from checking) is deliberately in neither
+// OUTFLOW_TYPES nor income: the spending is already counted as the card purchases.
 const OUTFLOW_TYPES = ['expense', 'subscription'];
 
 const isOutflow = (transaction) => OUTFLOW_TYPES.includes(transaction?.type);
 const isIncome = (transaction) => transaction?.type === 'income';
+const isTransfer = (transaction) => transaction?.type === 'transfer';
 
 const CENTS_PER_UNIT = 100;
 
@@ -131,6 +134,7 @@ export {
     isIncome,
     isOverBy,
     isOutflow,
+    isTransfer,
     money,
     periodKeyOf,
     periodLabel,

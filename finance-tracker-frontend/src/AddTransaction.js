@@ -5,6 +5,8 @@ const CATEGORY_OPTIONS = {
     income: ['Salary', 'Freelance', 'Investment', 'Interest', 'Bonus', 'Gift', 'Transfer', 'Tax Refund', 'Misc'],
     expense: ['Groceries', 'Housing', 'Transport', 'Health', 'Food', 'Entertainment', 'Transfer', 'Credit Card Payment', 'Misc'],
     subscription: ['Subscription', 'Streaming', 'Software', 'Utilities', 'Cloud', 'Gym', 'Membership', 'Misc'],
+    // Money moving between the user's own accounts; counted as neither side.
+    transfer: ['Credit Card Payment', 'Transfer', 'Misc'],
 };
 
 // An imported transaction can carry a category that is not in its type's list: the
@@ -134,6 +136,7 @@ const AddTransaction = ({ onSaved, onCancel, editingTransaction }) => {
                             <option value="expense">Expense</option>
                             <option value="income">Income</option>
                             <option value="subscription">Subscription</option>
+                            <option value="transfer">Transfer</option>
                         </select>
                     </div>
                     <div className="transaction-form-field">

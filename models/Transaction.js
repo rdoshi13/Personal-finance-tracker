@@ -17,7 +17,10 @@ const TransactionSchema = new mongoose.Schema({
     type: {
         type: String,
         required: true,
-        enum: ['income', 'expense', 'subscription'], // restricts to these types
+        // 'transfer' is money moving between the user's own accounts -- paying the
+        // credit card from checking. It is neither income nor outflow, so every
+        // aggregate that buckets by income vs OUTFLOW_TYPES leaves it out.
+        enum: ['income', 'expense', 'subscription', 'transfer'],
     },
     category: {
         type: String,
@@ -30,9 +33,10 @@ const TransactionSchema = new mongoose.Schema({
         required: true,
         // Amounts are stored as magnitudes, with direction carried by `type`. Every
         // aggregate in the app relies on that -- summarize(), the /summary pipeline,
-        // quests, budgets and the charts all add amounts and subtract by type. A
-        // negative amount would silently invert its own contribution to all of them,
-        // so it is rejected here rather than in each caller.
+        // quests, budgets and the charts all add amounts and subtract by type, and
+        // skip 'transfer' rows entirely. A negative amount would silently invert its
+        // own contribution to all of them, so it is rejected here rather than in each
+        // caller.
         min: [0.01, 'Amount must be greater than zero'],
         max: [1e12, 'Amount is out of range'],
     },
@@ -55,6 +59,18 @@ const TransactionSchema = new mongoose.Schema({
     sourceAccount: {
         type: String,
         trim: true,
+    },
+    // Absent means 'bank' -- every row imported before credit cards existed.
+    accountType: {
+        type: String,
+        enum: ['bank', 'credit_card'],
+    },
+    // The other half of a matched transfer: a card payment's bank debit, or the
+    // reverse. Server-managed -- the create and update routes strip it from client
+    // payloads -- and cleared on the survivor when either half is deleted.
+    linkedTransactionId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Transaction',
     },
 });
 

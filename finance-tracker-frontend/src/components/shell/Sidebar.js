@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAppState } from '../../state/AppStateContext';
-import { initialsOf } from '../../lib/money';
+import { initialsOf, isIncome, isOutflow } from '../../lib/money';
 import { BarsIcon, FlameIcon, GridIcon, ListIcon, MedalIcon, RepeatIcon, StarIcon, TrendIcon } from './icons';
 
 const NAV = [
@@ -27,7 +27,9 @@ const Sidebar = () => {
             const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
             const amount = Number(t.amount) || 0;
             byMonth[key] = byMonth[key] || 0;
-            byMonth[key] += t.type === 'income' ? amount : -amount;
+            // Same buckets as the server's summarize(): transfers count on neither side.
+            if (isIncome(t)) byMonth[key] += amount;
+            else if (isOutflow(t)) byMonth[key] -= amount;
         });
         const keys = Object.keys(byMonth).sort();
         if (!keys.length) return 0;
