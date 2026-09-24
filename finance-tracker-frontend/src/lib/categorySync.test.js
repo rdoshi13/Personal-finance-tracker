@@ -61,7 +61,7 @@ describe('category vocabularies stay in sync', () => {
         if (!importer || !addTransaction) return;
 
         const assigned = [...importer.matchAll(/category:\s*'([^']+)'/g)].map((m) => m[1]);
-        const offered = ['income', 'expense', 'subscription']
+        const offered = ['income', 'expense', 'subscription', 'transfer']
             .flatMap((type) => arrayLiteral(addTransaction, type) || []);
 
         // Not fatal when it fails -- AddTransaction preserves an unlisted category
