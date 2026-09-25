@@ -110,7 +110,11 @@ describe('ImportStatementModal', () => {
         expect(batch).toMatchObject({ filename: 'statement.csv', fileHash: 'file-hash' });
 
         expect(await screen.findByText('Imported 1, skipped 1, failed 0.')).toBeInTheDocument();
-        expect(onImported).toHaveBeenCalledWith([{ _id: 'new-1' }]);
+        // The whole result goes along too, so the shell can show matches and warnings.
+        expect(onImported).toHaveBeenCalledWith(
+            [{ _id: 'new-1' }],
+            expect.objectContaining({ imported: 1, skipped: 1, failed: 0 })
+        );
     });
 
     test('correcting an invalid row makes it importable', async () => {
@@ -153,5 +157,53 @@ describe('ImportStatementModal', () => {
         expect(await screen.findByText('Failed to import transactions')).toBeInTheDocument();
         expect(screen.getByDisplayValue('Costco')).toBeInTheDocument();
         expect(onImported).not.toHaveBeenCalled();
+    });
+});
+
+describe('ImportStatementModal with a card statement', () => {
+    const cardStatement = {
+        issuer: 'Chase', productName: 'Chase Freedom Unlimited', last4: '1301', sourceAccount: 'Chase ••1301',
+        openingDate: '2026-07-08', closingDate: '2026-08-07', previousBalance: 942.84, newBalance: 970.39,
+    };
+
+    beforeEach(() => jest.clearAllMocks());
+
+    test('shows the statement, and sends it with the import', async () => {
+        previewTransactionImport.mockResolvedValue({
+            ...preview([readyRow({ accountType: 'credit_card' })], { ready: 1, duplicate: 0, invalid: 0 }),
+            statement: cardStatement,
+        });
+        importTransactions.mockResolvedValue({ imported: 1, skipped: 0, failed: 0, transactions: [], transfersMatched: 1, warnings: [] });
+        render(<ImportStatementModal onClose={jest.fn()} onImported={jest.fn()} />);
+
+        uploadFile();
+
+        expect(await screen.findByLabelText('Card statement')).toHaveTextContent(
+            'Chase Freedom Unlimited ••1301 · 2026-07-08 to 2026-08-07 · new balance $970.39 · balances ✓'
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'Import 1 transactions' }));
+
+        expect(await screen.findByText(/Matched 1 card payment to checking/)).toBeInTheDocument();
+        expect(importTransactions.mock.calls[0][1].statement).toEqual(cardStatement);
+    });
+
+    test('a re-imported statement with only duplicates can still be committed', async () => {
+        previewTransactionImport.mockResolvedValue({
+            ...preview([readyRow({ status: 'duplicate' })], { ready: 0, duplicate: 1, invalid: 0 }),
+            statement: cardStatement,
+        });
+        importTransactions.mockResolvedValue({
+            imported: 0, skipped: 0, failed: 0, transactions: [], transfersMatched: null,
+            warnings: ['Card payments could not be paired with checking. Re-import the file to retry.'],
+        });
+        render(<ImportStatementModal onClose={jest.fn()} onImported={jest.fn()} />);
+
+        uploadFile();
+        const button = await screen.findByRole('button', { name: 'Update statement' });
+        expect(button).toBeEnabled();
+        fireEvent.click(button);
+
+        expect(await screen.findByText(/could not be paired with checking/)).toBeInTheDocument();
+        expect(importTransactions.mock.calls[0][0]).toEqual([]);
     });
 });

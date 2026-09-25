@@ -171,6 +171,30 @@ describe('AppShell import wiring', () => {
         expect(screen.queryByTestId('import-modal')).not.toBeInTheDocument();
     });
 
+    test('a card import says how many payments it matched', async () => {
+        render(<AppShell />);
+        fireEvent.click(screen.getByLabelText('Import statement'));
+
+        await act(async () => { await importModalProps.onImported([], { transfersMatched: 2, warnings: [] }); });
+
+        expect(mockState.pushToast).toHaveBeenCalledWith(
+            'Statement imported', 'Matched 2 card payments to checking', 'xp'
+        );
+    });
+
+    test('an import with warnings stays open so they can be read, but still reloads', async () => {
+        render(<AppShell />);
+        fireEvent.click(screen.getByLabelText('Import statement'));
+
+        await act(async () => {
+            await importModalProps.onImported([], { transfersMatched: null, warnings: ['Card payments could not be paired.'] });
+        });
+
+        expect(mockState.reload).toHaveBeenCalled();
+        expect(mockState.pushToast).not.toHaveBeenCalled();
+        expect(screen.getByTestId('import-modal')).toBeInTheDocument();
+    });
+
     test('closing the import modal changes nothing', () => {
         render(<AppShell />);
         fireEvent.click(screen.getByLabelText('Import statement'));

@@ -8,6 +8,7 @@ const TITLES = {
     transactions: 'Transactions',
     breakdown: 'Breakdown',
     subscriptions: 'Subscriptions',
+    cards: 'Cards',
     quests: 'Quests',
     achievements: 'Achievements',
 };

@@ -5,8 +5,11 @@ const mongoose = require('mongoose');
 const router = express.Router();
 const Transaction = require('../models/Transaction');
 const ImportBatch = require('../models/ImportBatch');
+const CardStatement = require('../models/CardStatement');
+const { matchCardPayments, recheckLinkAfterEdit, unlinkRows } = require('../lib/transferMatch');
 const {
     MAX_IMPORT_ROWS,
+    assertCardStatementBalances,
     buildFileHash,
     normalizeImportFileBuffer,
     normalizeSubmissionRow,
@@ -85,6 +88,13 @@ const updateTransactionById = async (req, res) => {
             return res.status(404).json({ message: 'Transaction not found' });
         }
 
+        // An edit can invalidate a card-payment pair, or make a row pairable. The
+        // link and the type may have changed, so the row is re-read before returning.
+        if (updatedTransaction.linkedTransactionId || updatedTransaction.category === 'Credit Card Payment') {
+            await recheckLinkAfterEdit(userId, updatedTransaction._id);
+            return res.json(await Transaction.findById(updatedTransaction._id));
+        }
+
         res.json(updatedTransaction);
     } catch (err) {
         if (err.name === 'CastError') {
@@ -104,12 +114,10 @@ const deleteTransactionById = async (req, res) => {
             return res.status(404).json({ message: 'Transaction not found' });
         }
 
-        // Its partner stays, but must not point at a row that no longer exists.
+        // Its partner stays, but must not point at a row that no longer exists -- and
+        // a checking debit whose card-side payment is gone counts as spending again.
         if (deletedTransaction.linkedTransactionId) {
-            await Transaction.updateOne(
-                { _id: deletedTransaction.linkedTransactionId, userId },
-                { $unset: { linkedTransactionId: 1 } }
-            );
+            await unlinkRows(userId, [deletedTransaction.linkedTransactionId]);
         }
 
         res.json({ message: 'Transaction deleted' });
@@ -155,10 +163,14 @@ router.post('/import/preview', handleImportUpload, async (req, res) => {
         }
 
         const sourceAccount = req.body?.sourceAccount || '';
-        const normalizedRows = await normalizeImportFileBuffer(req.file.buffer, req.file, { sourceAccount });
+        const { rows: normalizedRows, statement } = await normalizeImportFileBuffer(
+            req.file.buffer, req.file, { sourceAccount }
+        );
         const rows = await markDuplicateRows(normalizedRows, req.user.id);
 
         res.json({
+            // Set only for a credit card statement; the client sends it back on commit.
+            statement,
             filename: req.file.originalname,
             fileHash: buildFileHash(req.file.buffer),
             totalRows: rows.length,
@@ -174,6 +186,45 @@ router.post('/import/preview', handleImportUpload, async (req, res) => {
     }
 });
 
+const CARD_STATEMENT_MONEY = [
+    'previousBalance', 'payments', 'purchases', 'cashAdvances', 'balanceTransfers', 'fees', 'interest', 'newBalance',
+];
+
+/**
+ * The statement snapshot as submitted with an import. It came back from the client,
+ * so it is rebuilt from known fields only and must still balance.
+ */
+const readSubmittedStatement = (raw) => {
+    if (!raw) return null;
+    assertCardStatementBalances(raw);
+
+    const last4 = String(raw.last4 || '');
+    const openingDate = new Date(raw.openingDate);
+    const closingDate = new Date(raw.closingDate);
+    if (!/^\d{4}$/.test(last4) || Number.isNaN(openingDate.getTime()) || Number.isNaN(closingDate.getTime())) {
+        const error = new Error('Card statement is missing its account or period');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const optionalNumber = (value) => (value === null || value === undefined || value === '' ? undefined : Number(value));
+    const dueDate = raw.dueDate ? new Date(raw.dueDate) : undefined;
+    const statement = {
+        issuer: String(raw.issuer || 'Chase').trim(),
+        productName: String(raw.productName || '').trim(),
+        last4,
+        sourceAccount: String(raw.sourceAccount || '').trim() || `Chase ••${last4}`,
+        openingDate,
+        closingDate,
+        dueDate: dueDate && !Number.isNaN(dueDate.getTime()) ? dueDate : undefined,
+        minimumPayment: optionalNumber(raw.minimumPayment),
+        creditLimit: optionalNumber(raw.creditLimit),
+        purchaseApr: optionalNumber(raw.purchaseApr),
+    };
+    CARD_STATEMENT_MONEY.forEach((key) => { statement[key] = roundMoney(Number(raw[key])); });
+    return statement;
+};
+
 router.post('/import', async (req, res) => {
     try {
         const userId = req.user.id;
@@ -183,6 +234,8 @@ router.post('/import', async (req, res) => {
             return res.status(400).json({ message: `Import is limited to ${MAX_IMPORT_ROWS} rows` });
         }
 
+        // Validated before anything is written, so a bad statement imports nothing.
+        const statement = readSubmittedStatement(req.body?.batch?.statement);
         const sourceAccount = req.body?.sourceAccount || req.body?.batch?.sourceAccount || '';
         const normalizedRows = submittedRows.map((row) => normalizeSubmissionRow(row, { sourceAccount }));
         const reviewedRows = await markDuplicateRows(normalizedRows, userId);
@@ -247,6 +300,39 @@ router.post('/import', async (req, res) => {
         importBatch.failed = failed;
         await importBatch.save();
 
+        // The rows are committed by now, so a failure below must not turn into an
+        // error response -- the client would report a failed import that succeeded.
+        // It is logged and returned as a warning; re-importing the same file repeats
+        // both steps without duplicating any row.
+        const warnings = [];
+
+        if (statement) {
+            try {
+                await CardStatement.updateOne(
+                    { userId, last4: statement.last4, closingDate: statement.closingDate },
+                    { $set: { ...statement, userId } },
+                    { upsert: true, runValidators: true }
+                );
+            } catch (error) {
+                console.error('Failed to save card statement:', error);
+                warnings.push('The statement summary could not be saved. Re-import the file to retry.');
+            }
+        }
+
+        // Either side of a card payment can arrive first, so pair on every import
+        // that holds a card payment or a card statement -- including one where every
+        // row was a duplicate, so re-importing is a way to retry.
+        let transfersMatched = 0;
+        if (statement || reviewedRows.some((row) => row.category === 'Credit Card Payment')) {
+            try {
+                transfersMatched = await matchCardPayments(userId);
+            } catch (error) {
+                console.error('Failed to match card payments:', error);
+                transfersMatched = null;
+                warnings.push('Card payments could not be paired with checking. Re-import the file to retry.');
+            }
+        }
+
         res.status(201).json({
             totalRows: reviewedRows.length,
             imported: importedTransactions.length,
@@ -255,9 +341,11 @@ router.post('/import', async (req, res) => {
             transactions: importedTransactions,
             errors,
             importBatchId: importBatch._id,
+            transfersMatched,
+            warnings,
         });
     } catch (error) {
-        res.status(400).json({ message: error.message || 'Failed to import transactions' });
+        res.status(error.statusCode || 400).json({ message: error.message || 'Failed to import transactions' });
     }
 });
 

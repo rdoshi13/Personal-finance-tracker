@@ -33,6 +33,11 @@ describe('isSubscription', () => {
         expect(isSubscription({ type: 'expense', category: 'Credit Card Payment' })).toBe(false);
         expect(isSubscription({ type: 'income', category: 'Salary' })).toBe(false);
     });
+
+    test('a refund in a subscription category is not a charge', () => {
+        expect(isSubscription({ type: 'income', category: 'Cloud' })).toBe(false);
+        expect(isSubscription({ type: 'transfer', category: 'Subscription' })).toBe(false);
+    });
 });
 
 describe('inferCadence', () => {

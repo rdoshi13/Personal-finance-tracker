@@ -1,13 +1,14 @@
 import React from 'react';
 import { useAppState } from '../../state/AppStateContext';
 import { initialsOf, isIncome, isOutflow } from '../../lib/money';
-import { BarsIcon, FlameIcon, GridIcon, ListIcon, MedalIcon, RepeatIcon, StarIcon, TrendIcon } from './icons';
+import { BarsIcon, CardIcon, FlameIcon, GridIcon, ListIcon, MedalIcon, RepeatIcon, StarIcon, TrendIcon } from './icons';
 
 const NAV = [
     { id: 'dashboard', label: 'Dashboard', Icon: GridIcon },
     { id: 'transactions', label: 'Transactions', Icon: ListIcon },
     { id: 'breakdown', label: 'Breakdown', Icon: BarsIcon },
     { id: 'subscriptions', label: 'Subscriptions', Icon: RepeatIcon },
+    { id: 'cards', label: 'Cards', Icon: CardIcon },
     { id: 'quests', label: 'Quests', Icon: StarIcon },
     { id: 'achievements', label: 'Achievements', Icon: MedalIcon },
 ];

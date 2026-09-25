@@ -113,4 +113,6 @@ const BreakdownView = ({ onAdd }) => {
     );
 };
 
+// The category list, reused by the Cards view for card spending.
+export { Side as CategorySide };
 export default BreakdownView;

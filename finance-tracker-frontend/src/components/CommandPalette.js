@@ -27,6 +27,7 @@ const CommandPalette = ({ open, onClose, onAdd, onImport }) => {
         { label: 'Go to Transactions', sub: 'View', run: () => setView('transactions') },
         { label: 'Go to Breakdown', sub: 'View', run: () => setView('breakdown') },
         { label: 'Go to Subscriptions', sub: 'View', run: () => setView('subscriptions') },
+        { label: 'Go to Cards', sub: 'View', run: () => setView('cards') },
         { label: 'Go to Quests', sub: 'View', run: () => setView('quests') },
         { label: 'Go to Achievements', sub: 'View', run: () => setView('achievements') },
         { label: 'Next month', sub: 'Move forward', run: () => stepPeriod(1) },

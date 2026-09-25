@@ -59,6 +59,9 @@ export const CalendarIcon = (p) => (
     <Icon {...p}><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4m8-4v4" /></Icon>
 );
 export const UploadIcon = (p) => <Icon {...p} d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16" />;
+export const CardIcon = (p) => (
+    <Icon {...p}><rect x="3" y="5" width="18" height="14" rx="2.5" /><path d="M3 10h18M7 15h4" /></Icon>
+);
 export const BoltIcon = (p) => <Icon {...p} d="M13 2L4 14h6l-1 8 9-12h-6z" />;
 
 export default Icon;

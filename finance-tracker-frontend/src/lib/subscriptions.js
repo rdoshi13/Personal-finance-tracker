@@ -1,4 +1,4 @@
-import { roundMoney, sumMoney } from './money';
+import { isOutflow, roundMoney, sumMoney } from './money';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const AVG_MONTH_DAYS = 30.44;
@@ -36,9 +36,14 @@ const categoryOf = (transaction) => (transaction?.category || '').trim();
  * Classification, not recurrence: a subscription is something typed as one or
  * filed under a recurring-commitment category. Deciding membership by repetition
  * instead would pull in rent and card autopays, which recur just as reliably.
+ *
+ * Only outflows count. A refund keeps its merchant's category -- a Google Cloud
+ * credit is income filed under Cloud -- and read as a charge it would join the
+ * group, skew its cadence and could become the "latest" price.
  */
 const isSubscription = (transaction) =>
-    transaction?.type === 'subscription' || SUBSCRIPTION_CATEGORIES.includes(categoryOf(transaction));
+    isOutflow(transaction) &&
+    (transaction.type === 'subscription' || SUBSCRIPTION_CATEGORIES.includes(categoryOf(transaction)));
 
 const median = (values) => {
     const sorted = [...values].sort((a, b) => a - b);
