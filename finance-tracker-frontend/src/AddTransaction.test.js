@@ -115,13 +115,14 @@ describe('AddTransaction', () => {
         );
     });
 
-    test('a card payment is offered as a transfer, not as an expense', () => {
+    test('a card payment is entered as an expense; pairing with its statement makes it a transfer', () => {
         render(<AddTransaction onSaved={onSaved} onCancel={onCancel} editingTransaction={null} />);
         const categories = () => [...screen.getByLabelText('Category').options].map((o) => o.value);
 
-        expect(categories()).not.toContain('Credit Card Payment');
-        fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'transfer' } });
         expect(categories()).toContain('Credit Card Payment');
+        // A hand-picked transfer would never be counted, paired or not.
+        fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'transfer' } });
+        expect(categories()).not.toContain('Credit Card Payment');
     });
 
     test('shows API errors', async () => {

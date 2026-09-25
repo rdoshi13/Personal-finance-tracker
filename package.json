@@ -10,7 +10,7 @@
     "reset:password": "node scripts/resetPassword.js",
     "backfill:progress": "node scripts/backfillProgress.js",
     "backfill:subscription-type": "node scripts/backfillSubscriptionType.js",
-    "backfill:card-transfers": "node scripts/backfillCardTransfers.js",
+    "reconcile:card-payments": "node scripts/reconcileCardPayments.js",
     "indexes:reconcile": "node scripts/reconcileIndexes.js"
   },
   "keywords": [],

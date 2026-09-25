@@ -529,6 +529,45 @@ dbTest('the month report leaves transfers out of both sides of its breakdown', a
     assert.equal(body.report['Credit Card Payment'].total, 500);
 });
 
+dbTest('deleting the card half of a pair makes the checking debit spending again', async () => {
+    const { card, bank } = await seedPair();
+
+    const { status } = await asJson(await call(`/api/transactions/${card._id}`, { token: annToken, method: 'DELETE' }));
+    const survivor = await Transaction.findById(bank._id).lean();
+
+    assert.equal(status, 200);
+    assert.equal(survivor.linkedTransactionId, undefined);
+    assert.equal(survivor.type, 'expense');
+});
+
+dbTest('a card payment counts as spending until its statement arrives, and exactly once after', async () => {
+    await Transaction.deleteMany({ userId: ann._id });
+    const july = async () => (await asJson(await call('/api/transactions/summary?year=2024', { token: annToken })))
+        .body.months.find((m) => m.month === 7).expense;
+    const importRows = (rows, statement) => call('/api/transactions/import', {
+        token: annToken, method: 'POST', body: { rows, batch: { filename: 'f.pdf', fileHash: 'e2e', statement } },
+    });
+
+    // Checking only: the $60 debit is the only record of the card spending.
+    await importRows([{
+        rowNumber: 1, date: '2024-07-20', name: 'Chase Card Payment', description: 'Payment To Chase Card Ending IN 4242',
+        amount: 60, type: 'expense', category: 'Credit Card Payment',
+    }]);
+    assert.equal(await july(), 60);
+
+    // The card statement arrives: $60 of purchases, and the payment that pairs.
+    // 100 - 60 + 60 = 100.
+    const statement = cardSnapshot({
+        openingDate: '2024-06-25', closingDate: '2024-07-24', payments: -60, purchases: 60, interest: 0, newBalance: 100,
+    });
+    await importRows([
+        cardPaymentRow({ date: '2024-07-19', amount: 60 }),
+        { ...cardPaymentRow({ date: '2024-07-02', amount: 60 }), rowNumber: 2, name: 'Corner Bakery', description: 'CORNER BAKERY',
+            type: 'expense', category: 'Food' },
+    ], statement);
+    assert.equal(await july(), 60, 'the purchases replace the payment; nothing is counted twice');
+});
+
 dbTest('deleting one half of a matched transfer unlinks the other', async () => {
     const [bank, card] = await Transaction.create([
         { userId: ann._id, name: 'Chase Card Payment', type: 'transfer', category: 'Credit Card Payment', amount: 40, date: new Date('2025-05-05') },
@@ -584,8 +623,8 @@ dbTest('an import commit stores transfer rows with their account type', async ()
     assert.equal(stored.accountType, 'bank');
 });
 
-dbTest('a backfill hash collision still retypes the row, and reports it as a duplicate', async () => {
-    const { applyRow, planRow } = require('../scripts/backfillCardTransfers');
+dbTest('a reconcile hash collision still categorises the row, and reports it as a duplicate', async () => {
+    const { applyRow, planRow } = require('../scripts/reconcileCardPayments');
     const { buildImportHash } = require('../lib/transactionImport');
     const fields = { date: new Date('2025-08-20T12:00:00Z'), amount: 500, sourceAccount: '' };
     const oldName = '08/20 Payment To Chase Card Ending IN 1301';
@@ -596,7 +635,7 @@ dbTest('a backfill hash collision still retypes the row, and reports it as a dup
         importHash: buildImportHash({ ...fields, name: oldName }),
     });
     await Transaction.create({
-        ...fields, userId: ann._id, name: 'Chase Card Payment', description: oldName, type: 'transfer',
+        ...fields, userId: ann._id, name: 'Chase Card Payment', description: oldName, type: 'expense',
         category: 'Credit Card Payment', importHash: buildImportHash({ ...fields, name: 'Chase Card Payment' }),
     });
 
@@ -604,19 +643,22 @@ dbTest('a backfill hash collision still retypes the row, and reports it as a dup
     const after = await Transaction.findById(old._id).lean();
 
     assert.equal(outcome, 'duplicate');
-    assert.equal(after.type, 'transfer', 'must stop counting as spending even though the rename collided');
+    assert.equal(after.category, 'Credit Card Payment', 'must still be recognised as a card payment');
     assert.equal(after.name, oldName);
     assert.equal(after.importHash, old.importHash);
 });
 
-dbTest('a backfill leaves a row alone once it is no longer an expense', async () => {
-    const { applyRow, planRow } = require('../scripts/backfillCardTransfers');
+dbTest('a reconcile leaves a row alone if it was edited while it ran', async () => {
+    const { applyRow, planRow } = require('../scripts/reconcileCardPayments');
     const row = await Transaction.create({
-        userId: ann._id, name: 'Card', type: 'income', category: 'Credit Card Payment', amount: 5, date: new Date('2025-09-01'),
+        userId: ann._id, name: 'Card', description: 'Chase Credit Crd Autopay', type: 'expense', category: 'Misc',
+        amount: 5, date: new Date('2025-09-01'),
     });
+    const entry = planRow(row.toObject());
+    await Transaction.updateOne({ _id: row._id }, { name: 'Renamed meanwhile' });
 
-    assert.equal(await applyRow(planRow(row.toObject())), 'unchanged');
-    assert.equal((await Transaction.findById(row._id).lean()).type, 'income');
+    assert.equal(await applyRow(entry), 'unchanged');
+    assert.equal((await Transaction.findById(row._id).lean()).category, 'Misc');
 });
 
 // --- credit card statements ------------------------------------------------------
@@ -696,15 +738,16 @@ dbTest('a card payment is paired with its checking debit whichever side is impor
     await Transaction.deleteMany({ userId: ann._id });
     const bankRow = {
         rowNumber: 1, date: '2025-12-05', name: 'Chase Credit Card Autopay', description: 'Chase Credit Crd Autopay',
-        amount: 40, type: 'transfer', category: 'Credit Card Payment',
+        amount: 40, type: 'expense', category: 'Credit Card Payment',
     };
     const importRows = (rows, statement) => call('/api/transactions/import', {
         token: annToken, method: 'POST', body: { rows, batch: { filename: 'f.pdf', fileHash: 'z', statement } },
     });
 
-    // Bank side first: nothing to pair with yet.
+    // Bank side first: nothing to pair with yet, so the debit is spending.
     const bank = await asJson(await importRows([bankRow]));
     assert.equal(bank.body.transfersMatched, 0);
+    assert.equal((await Transaction.findOne({ userId: ann._id }).lean()).type, 'expense');
 
     // A statement whose only activity is that payment: 100 - 40 = 60.
     const statement = cardSnapshot({
@@ -719,6 +762,7 @@ dbTest('a card payment is paired with its checking debit whichever side is impor
     ]);
     assert.equal(String(bankStored.linkedTransactionId), String(cardStored._id));
     assert.equal(String(cardStored.linkedTransactionId), String(bankStored._id));
+    assert.equal(bankStored.type, 'transfer', 'once paired, the card purchases count instead');
 
     // Re-importing either file finds nothing left to pair.
     const again = await asJson(await importRows([bankRow]));
@@ -759,10 +803,11 @@ const seedPair = async () => {
     await Transaction.deleteMany({ userId: ann._id });
     const [card, bank] = await Transaction.create([
         { userId: ann._id, name: 'Card Payment Received', type: 'transfer', category: 'Credit Card Payment', amount: 500, date: new Date('2025-07-20T12:00:00Z'), accountType: 'credit_card', sourceAccount: 'Chase ••1301' },
-        { userId: ann._id, name: 'Chase Card Payment', type: 'transfer', category: 'Credit Card Payment', amount: 500, date: new Date('2025-07-20T12:00:00Z'), description: 'Payment To Chase Card Ending IN 1301' },
+        { userId: ann._id, name: 'Chase Card Payment', type: 'expense', category: 'Credit Card Payment', amount: 500, date: new Date('2025-07-20T12:00:00Z'), description: 'Payment To Chase Card Ending IN 1301' },
     ]);
     const { matchCardPayments } = require('../lib/transferMatch');
     assert.equal(await matchCardPayments(ann._id), 1);
+    assert.equal((await Transaction.findById(bank._id).lean()).type, 'transfer', 'pairing makes the debit a transfer');
     return { card, bank };
 };
 
@@ -780,8 +825,8 @@ dbTest('renaming one half of a matched payment keeps the pair', async () => {
     assert.equal(String(await linkOf(card._id)), String(bank._id));
 });
 
-dbTest('changing the amount or type of one half breaks the pair on both sides', async () => {
-    for (const edit of [{ amount: 50 }, { type: 'expense' }]) {
+dbTest('changing the amount or category of one half breaks the pair, and the debit is spending again', async () => {
+    for (const edit of [{ amount: 50 }, { category: 'Misc' }]) {
         const { card, bank } = await seedPair();
 
         const { body } = await asJson(await call(`/api/transactions/${bank._id}`, {
@@ -789,6 +834,7 @@ dbTest('changing the amount or type of one half breaks the pair on both sides', 
         }));
 
         assert.equal(body.linkedTransactionId, undefined, JSON.stringify(edit));
+        assert.equal(body.type, 'expense', JSON.stringify(edit));
         assert.equal(await linkOf(card._id), undefined, JSON.stringify(edit));
     }
 });

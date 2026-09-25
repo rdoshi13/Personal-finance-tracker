@@ -6,7 +6,7 @@ const router = express.Router();
 const Transaction = require('../models/Transaction');
 const ImportBatch = require('../models/ImportBatch');
 const CardStatement = require('../models/CardStatement');
-const { matchCardPayments, recheckLinkAfterEdit } = require('../lib/transferMatch');
+const { matchCardPayments, recheckLinkAfterEdit, unlinkRows } = require('../lib/transferMatch');
 const {
     MAX_IMPORT_ROWS,
     assertCardStatementBalances,
@@ -89,8 +89,8 @@ const updateTransactionById = async (req, res) => {
         }
 
         // An edit can invalidate a card-payment pair, or make a row pairable. The
-        // link may have changed, so the row is re-read before it is returned.
-        if (updatedTransaction.linkedTransactionId || updatedTransaction.type === 'transfer') {
+        // link and the type may have changed, so the row is re-read before returning.
+        if (updatedTransaction.linkedTransactionId || updatedTransaction.category === 'Credit Card Payment') {
             await recheckLinkAfterEdit(userId, updatedTransaction._id);
             return res.json(await Transaction.findById(updatedTransaction._id));
         }
@@ -114,12 +114,10 @@ const deleteTransactionById = async (req, res) => {
             return res.status(404).json({ message: 'Transaction not found' });
         }
 
-        // Its partner stays, but must not point at a row that no longer exists.
+        // Its partner stays, but must not point at a row that no longer exists -- and
+        // a checking debit whose card-side payment is gone counts as spending again.
         if (deletedTransaction.linkedTransactionId) {
-            await Transaction.updateOne(
-                { _id: deletedTransaction.linkedTransactionId, userId },
-                { $unset: { linkedTransactionId: 1 } }
-            );
+            await unlinkRows(userId, [deletedTransaction.linkedTransactionId]);
         }
 
         res.json({ message: 'Transaction deleted' });
@@ -322,10 +320,10 @@ router.post('/import', async (req, res) => {
         }
 
         // Either side of a card payment can arrive first, so pair on every import
-        // that holds a transfer or a card statement -- including one where every row
-        // was a duplicate, so re-importing is a way to retry.
+        // that holds a card payment or a card statement -- including one where every
+        // row was a duplicate, so re-importing is a way to retry.
         let transfersMatched = 0;
-        if (statement || reviewedRows.some((row) => row.type === 'transfer')) {
+        if (statement || reviewedRows.some((row) => row.category === 'Credit Card Payment')) {
             try {
                 transfersMatched = await matchCardPayments(userId);
             } catch (error) {

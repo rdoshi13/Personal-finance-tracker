@@ -251,12 +251,12 @@ test('a manual card payment gets a clean name, without its date prefix', () => {
     assert.equal(cleanChaseTransactionName('Payment To Chase Card Ending IN 1301'), 'Chase Card Payment');
 });
 
-test('resolveType makes an outgoing card payment a transfer, never an inflow', () => {
-    assert.equal(resolveType('expense', 'Credit Card Payment'), 'transfer');
+test('resolveType leaves a card payment from checking an expense; pairing decides', () => {
+    assert.equal(resolveType('expense', 'Credit Card Payment'), 'expense');
     assert.equal(resolveType('income', 'Credit Card Payment'), 'income');
 });
 
-test('both shapes of card payment in a checking statement import as transfers', () => {
+test('both shapes of card payment in a checking statement import as card-payment expenses', () => {
     const statement = [
         'CHECKING SUMMARY',
         'Beginning Balance $2,000.00',
@@ -273,12 +273,13 @@ test('both shapes of card payment in a checking statement import as transfers', 
     // The autopay name predates this change and is part of its import hash, so it
     // must not move -- otherwise re-importing an old statement duplicates the row.
     assert.equal(autopay.name, 'Chase Credit Card Autopay');
-    assert.equal(autopay.type, 'transfer');
+    // Spending until its card statement is imported and the matcher pairs it.
+    assert.equal(autopay.type, 'expense');
     assert.equal(autopay.category, 'Credit Card Payment');
     assert.equal(autopay.amount, 40);
 
     assert.equal(manual.name, 'Chase Card Payment');
-    assert.equal(manual.type, 'transfer');
+    assert.equal(manual.type, 'expense');
     assert.equal(manual.category, 'Credit Card Payment');
     assert.equal(manual.amount, 500);
     assert.equal(manual.date, '2026-07-20');
@@ -287,7 +288,7 @@ test('both shapes of card payment in a checking statement import as transfers', 
     assert.equal(subway.type, 'expense');
 });
 
-test('a card payment in a CSV export is a transfer too', () => {
+test('a card payment in a CSV export is categorised the same way', () => {
     const csv = [
         'Date,Description,Amount',
         '2026-07-20,Payment To Chase Card Ending IN 1301,-500.00',
@@ -295,10 +296,10 @@ test('a card payment in a CSV export is a transfer too', () => {
 
     const [row] = normalizeCsvBuffer(Buffer.from(csv));
 
-    // The CSV path does not clean names. scripts/backfillCardTransfers.js relies on
+    // The CSV path does not clean names. scripts/reconcileCardPayments.js relies on
     // that: it leaves CSV rows' names and hashes alone because a re-import keeps them.
     assert.equal(row.name, 'Payment To Chase Card Ending IN 1301');
-    assert.equal(row.type, 'transfer');
+    assert.equal(row.type, 'expense');
     assert.equal(row.category, 'Credit Card Payment');
     assert.equal(row.amount, 500);
 });
